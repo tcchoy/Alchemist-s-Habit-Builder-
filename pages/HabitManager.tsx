@@ -38,6 +38,7 @@ const HabitCard: React.FC<{ habit: Habit }> = ({ habit }) => {
 
     const handleDelete = (e: React.MouseEvent) => {
         e.stopPropagation();
+        e.preventDefault();
         if (window.confirm('Are you sure you want to discard this potion recipe?')) {
             deleteHabit(habit.id);
         }
@@ -45,6 +46,7 @@ const HabitCard: React.FC<{ habit: Habit }> = ({ habit }) => {
 
     const handleEdit = (e: React.MouseEvent) => {
         e.stopPropagation();
+        e.preventDefault();
         navigate(`/create?edit=${habit.id}`);
     };
 
@@ -53,9 +55,9 @@ const HabitCard: React.FC<{ habit: Habit }> = ({ habit }) => {
             onClick={() => isDue && toggleHabit(habit.id)}
             className={`group relative flex flex-col gap-3 rounded-xl border border-white/10 bg-surface-dark/40 p-4 transition-all hover:bg-surface-dark hover:shadow-lg hover:border-primary/30 cursor-pointer ${isDone ? 'opacity-60 bg-surface-dark/20' : ''}`}
         >
-            <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
-                <button onClick={handleEdit} className="p-1 text-gray-400 hover:text-white bg-black/80 rounded-full border border-white/10"><span className="material-symbols-outlined text-sm">edit</span></button>
-                <button onClick={handleDelete} className="p-1 text-red-400 hover:text-red-200 bg-black/80 rounded-full border border-red-900/50"><span className="material-symbols-outlined text-sm">delete</span></button>
+            <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-50">
+                <button onClick={handleEdit} className="p-1 text-gray-400 hover:text-white bg-black/80 rounded-full border border-white/10 shadow-lg"><span className="material-symbols-outlined text-sm">edit</span></button>
+                <button onClick={handleDelete} className="p-1 text-red-400 hover:text-red-200 bg-black/80 rounded-full border border-red-900/50 shadow-lg"><span className="material-symbols-outlined text-sm">delete</span></button>
             </div>
             
             <div className="flex items-start gap-3">

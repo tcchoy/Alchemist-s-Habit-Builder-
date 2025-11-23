@@ -9,10 +9,17 @@ const QuestCard: React.FC<{ quest: Quest }> = ({ quest }) => {
     const isSystem = quest.type === 'System';
     const isClaimed = quest.status === 'claimed';
 
+    const handleDelete = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (window.confirm('Delete this notice?')) {
+            deleteQuest(quest.id);
+        }
+    };
+
     return (
         <div className={`group relative flex flex-col gap-4 rounded-lg p-6 border-2 transition-all ${isSystem ? 'bg-[#1e1b2e] border-blue-500/30' : 'bg-[#2a2218] border-amber-600/30'} ${isClaimed ? 'opacity-80 grayscale bg-black/20' : ''}`}>
              <div className="absolute -top-3 left-1/2 -translate-x-1/2 size-4 rounded-full bg-red-800 shadow-md border border-red-950"></div>
-             {!isSystem && <button onClick={() => confirm('Delete?') && deleteQuest(quest.id)} className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-200"><span className="material-symbols-outlined text-sm">delete</span></button>}
+             {!isSystem && <button onClick={handleDelete} className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-200 z-10 p-1"><span className="material-symbols-outlined text-sm">delete</span></button>}
              
              <div className="flex items-start gap-4">
                  {renderCategoryIcon(quest.category, stats.customCategories, "size-10 shrink-0")}

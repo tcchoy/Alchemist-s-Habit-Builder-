@@ -66,11 +66,11 @@ export const LEVEL_TITLES = [
 ];
 
 export const MAPS = [
-    { level: 1, name: "Verdant Lowlands", image: "https://images.unsplash.com/photo-1625590188988-3327b6f60a1f?q=80&w=1470&auto=format&fit=crop", rewardRange: "10-50g" }, 
-    { level: 2, name: "Whisperwood", image: "https://images.unsplash.com/photo-1518063319789-7217e6706b04?q=80&w=1374&auto=format&fit=crop", rewardRange: "20-100g" }, 
-    { level: 3, name: "Azure Caverns", image: "https://images.unsplash.com/photo-1516912481808-3406841bd33c?q=80&w=1344&auto=format&fit=crop", rewardRange: "50-150g" }, 
-    { level: 4, name: "Cinder Crag", image: "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?q=80&w=1511&auto=format&fit=crop", rewardRange: "100-250g" }, 
-    { level: 5, name: "Starfall Summit", image: "https://images.unsplash.com/photo-1536604673633-37914cf2ed04?q=80&w=1374&auto=format&fit=crop", rewardRange: "200-500g" }, 
+    { level: 1, name: "Whisperwind Woodland", image: "https://lh3.googleusercontent.com/aida-public/AB6AXuD8Q0S2U4V6W8X0Y2Z5a7b9c1d3e5f7g9h1i3j5k7l9m1n3o5p7q9r1s3t5u7v9w1x3y5z7a9b1c3d5e7f9g1h3i5j7k9l1m3n5o7p9q1r3s5t7u9v1w3x5y7z9a1b3c5d7e9f1g1h3i5j7k9l1m3n5o7p9q1r3s5t7u9v1w3x5y7z9a1b3c5d7e9f1g3h5i7j9", rewardRange: "10-50g" },
+    { level: 2, name: "Gloomrot Bog", image: "https://lh3.googleusercontent.com/aida-public/AB6AXuB2M4N6P8R0T1V3W5Y7X9Z1b3d5f7g9h1i3j5k7l9m1n3o5p7q9r1s3t5u7v9w1x3y5z7a9b1c3d5e7f9g1h3i5j7k9l1m3n5o7p9q1r3s5t7u9v1w3x5y7z9a1b3c5d7e9f1g1h3i5j7k9l1m3n5o7p9q1r3s5t7u9v1w3x5y7z9a1b3c5d7e9f1g3h5i7j9k1l3m5", rewardRange: "20-100g" },
+    { level: 3, name: "Leviathan Sea", image: "https://lh3.googleusercontent.com/aida-public/AB6AXuC4O6P8R0T1V3W5Y7X9Z1b3d5f7g9h1i3j5k7l9m1n3o5p7q9r1s3t5u7v9w1x3y5z7a9b1c3d5e7f9g1h3i5j7k9l1m3n5o7p9q1r3s5t7u9v1w3x5y7z9a1b3c5d7e9f1g3h5i7j9k1l3m5n7o9", rewardRange: "50-150g" },
+    { level: 4, name: "Crimson Volcano", image: "https://lh3.googleusercontent.com/aida-public/AB6AXuDT9P6O1hE5eT_K73Ua1yM29uXN22i1FwM8T7F7QnO6-1X6J3Z5Y2c9V4b8N0m1L5k2J7H4G9F6D3C8B0A1E5G2I9K4L7M3N6O8P0Q2R5S9T1U4V6W8X0Y2Z5a7b9c1d3e5f7g9h1i3j5k7l9m1n3o5", rewardRange: "100-250g" },
+    { level: 5, name: "Voidlight Caverns", image: "https://lh3.googleusercontent.com/aida-public/AB6AXuA6O8P0Q2R5S9T1U4V6W8X0Y2Z5a7b9c1d3e5f7g9h1i3j5k7l9m1n3o5p7q9r1s3t5u7v9w1x3y5z7a9b1c3d5e7f9g1h3i5j7k9l1m3n5o7p9q1r3s5t7u9v1w3x5y7z9a1b3c5d7e9f1g3h5", rewardRange: "200-500g" },
 ];
 
 const DICTIONARY: Record<Language, Record<string, string>> = {
@@ -188,11 +188,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             if (savedHabits) setHabits(JSON.parse(savedHabits));
             const savedQuests = localStorage.getItem('pps_quests');
             if (savedQuests) setQuests(JSON.parse(savedQuests));
-            // Only reset quests if no save found, otherwise use save
-            // But here we want to ensure the system quests are updated if we change code.
-            // A simple merge strategy for System Quests:
+            
             const savedQuestsList = savedQuests ? JSON.parse(savedQuests) as Quest[] : SEED_QUESTS;
-            // Add any new SEED quests that aren't in saved list
             SEED_QUESTS.forEach(sq => {
                 if (!savedQuestsList.some(q => q.id === sq.id)) {
                     savedQuestsList.push(sq);
@@ -228,11 +225,12 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
             // Handle Daily Logic
             if (q.autoCheckKey === 'daily_habits' && triggerType === 'daily_habits') {
-                const completedToday = habits.filter(h => h.status === 'done').length;
+                const completedToday = value !== undefined ? value : habits.filter(h => h.status === 'done').length;
+                if (completedToday >= 3) return { ...q, status: 'completed', progress: 3 };
                 return { ...q, progress: completedToday };
             }
             if (q.autoCheckKey === 'daily_habits_total' && triggerType === 'daily_habits') {
-                 const completedToday = habits.filter(h => h.status === 'done').length;
+                 const completedToday = value !== undefined ? value : habits.filter(h => h.status === 'done').length;
                  if (completedToday >= 8) return { ...q, status: 'completed', progress: 8 };
                  return { ...q, progress: completedToday };
             }
@@ -245,11 +243,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             // Handle Simple Triggers
             if (q.autoCheckKey === triggerType) {
                  if (value !== undefined) {
-                     // Check if max met
                      if (value >= q.maxProgress) return { ...q, status: 'completed', progress: q.maxProgress };
                      return { ...q, progress: value };
                  } else {
-                     // Increment
                      const newProg = q.progress + 1;
                      if (newProg >= q.maxProgress) return { ...q, status: 'completed', progress: q.maxProgress };
                      return { ...q, progress: newProg };
@@ -322,7 +318,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             if (!habit) return prev;
             
             const isDone = habit.status === 'done';
+            
             if (!isDone) {
+                // Calculate rewards
                 let mult = stats.rewardMultiplier;
                 if (stats.categoryMultipliers[habit.category]) mult *= stats.categoryMultipliers[habit.category];
                 const gold = Math.floor(habit.rewardGold * mult);
@@ -332,12 +330,18 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 addXp(xp);
                 logHistory(`${habit.title}|${habit.category}`, 'habit', `+${gold}g, +${xp}XP`);
                 
+                const currentDoneCount = prev.filter(h => h.status === 'done').length;
                 setTimeout(() => {
-                    checkSystemQuests('daily_habits');
+                    checkSystemQuests('daily_habits', currentDoneCount + 1);
                 }, 0);
 
                 return prev.map(h => h.id === id ? { ...h, status: 'done', streak: h.streak + 1, completions: (h.completions||0)+1, lastCompletedDate: new Date().toISOString().split('T')[0] } : h);
             } else {
+                 const currentDoneCount = prev.filter(h => h.status === 'done').length;
+                 setTimeout(() => {
+                    checkSystemQuests('daily_habits', Math.max(0, currentDoneCount - 1));
+                }, 0);
+
                  return prev.map(h => h.id === id ? { ...h, status: 'todo', streak: Math.max(0, h.streak - 1), completions: Math.max(0, (h.completions||1)-1) } : h);
             }
         });
@@ -439,10 +443,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const today = new Date();
         const currentDay = today.getDay(); // 0-6
         const currentDate = today.getDate(); // 1-31
-        const currentMonth = today.getMonth(); // 0-11
         
         const startDate = new Date(habit.startDate);
-        // Reset time for accurate day calculation
         today.setHours(0,0,0,0);
         const startClone = new Date(habit.startDate);
         startClone.setHours(0,0,0,0);
@@ -450,7 +452,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const diffTime = today.getTime() - startClone.getTime();
         const diffDays = Math.floor(diffTime / (1000 * 3600 * 24));
 
-        if (diffDays < 0) return false; // Not started yet
+        if (diffDays < 0) return false;
 
         if (habit.frequency === 'daily') return true;
         
@@ -459,11 +461,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
 
         if (habit.frequency === 'weekly') {
-            // Check if current weekday is in allowed list
             if (!habit.weekDays?.includes(currentDay)) return false;
-            // Check interval (Every X weeks)
-            // Get week number difference?
-            // Simple approximation: diffDays / 7
             const currentWeekDiff = Math.floor(diffDays / 7);
             return currentWeekDiff % habit.interval === 0;
         }
@@ -471,8 +469,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (habit.frequency === 'monthly_date') {
             if (!habit.monthDay) return false;
             if (currentDate !== habit.monthDay) return false;
-            // Check interval (Every X months)
-            // Need accurate month diff
             let months = (today.getFullYear() - startClone.getFullYear()) * 12;
             months -= startClone.getMonth();
             months += today.getMonth();
@@ -480,17 +476,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
 
         if (habit.frequency === 'monthly_weekday') {
-             // e.g. 2nd Tuesday
-             // Check if today is the correct weekday
              if (currentDay !== habit.monthWeekDay) return false;
-             
-             // Calculate which occurrence of this weekday it is in the month
-             // e.g. 8th of month. 1st was Tuesday. 8th is 2nd Tuesday.
-             // Math: ceil(date / 7) -> 1st week, 2nd week...
              const weekRank = Math.ceil(currentDate / 7);
-             
-             // Special case: Last weekday (habit.monthWeek === 5 or -1)
-             // Check if adding 7 days puts us in next month
              const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
              const isLast = (currentDate + 7) > daysInMonth;
 
@@ -500,23 +487,21 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                  if (weekRank !== habit.monthWeek) return false;
              }
 
-             // Check month interval
              let months = (today.getFullYear() - startClone.getFullYear()) * 12;
              months -= startClone.getMonth();
              months += today.getMonth();
              return months % habit.interval === 0;
         }
-
+        
         // Legacy fallbacks
         if (habit.frequency === 'specific_days' && habit.days) return habit.days.includes(currentDay);
         if (habit.frequency === 'repeating' && habit.repeatInterval) return diffDays % habit.repeatInterval === 0;
-        
+
         return false;
     };
 
     const getNextDueDate = (habit: Habit): string => {
         if (isHabitDueToday(habit)) return "Today";
-        // Very basic future check - logic can be complex for recurrence
         if (habit.frequency === 'daily') return "Tomorrow";
         if (habit.frequency === 'interval') return `In ${habit.interval - (Math.floor((new Date().getTime() - new Date(habit.startDate).getTime())/(1000*3600*24)) % habit.interval)} days`;
         return "Soon";

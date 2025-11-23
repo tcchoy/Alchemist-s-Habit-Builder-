@@ -11,7 +11,6 @@ const Certificates: React.FC = () => {
     // -------------------------------------------------------------------------
     
     // 1. Consistent Alchemist: Daily Commissions Completed
-    // We look at historyLogs for Quest completions where message is "Daily Commission"
     const dailyCommissions = new Set(
         historyLogs
             .filter(l => l.type === 'quest' && l.message.includes('Daily Commission'))
@@ -59,22 +58,23 @@ const Certificates: React.FC = () => {
     const totalQuests = historyLogs.filter(l => l.type === 'quest').length;
 
     // 9. All-Rounder Alchemist
-    // Simplified Logic: Count distinct days where user completed at least 3 different habits
-    // This represents versatility/consistency across the board.
-    const habitsByDate: Record<string, Set<string>> = {};
+    // Logic: Count distinct days where user completed habits from at least 3 DIFFERENT CATEGORIES
+    const categoriesByDate: Record<string, Set<string>> = {};
     historyLogs
         .filter(l => l.type === 'habit')
         .forEach(l => {
             const date = l.date;
-            const habitName = l.message.split('|')[0];
-            if (!habitsByDate[date]) habitsByDate[date] = new Set();
-            habitsByDate[date].add(habitName);
+            const category = l.message.split('|')[1];
+            if (category) {
+                if (!categoriesByDate[date]) categoriesByDate[date] = new Set();
+                categoriesByDate[date].add(category);
+            }
         });
-    const versatileDays = Object.values(habitsByDate).filter(s => s.size >= 3).length;
+    const versatileDays = Object.values(categoriesByDate).filter(s => s.size >= 3).length;
 
 
     // -------------------------------------------------------------------------
-    // MILESTONE DEFINITIONS
+    // MILESTONE DEFINITIONS (V3)
     // -------------------------------------------------------------------------
     const MILESTONES: Milestone[] = [
         {
@@ -176,7 +176,7 @@ const Certificates: React.FC = () => {
         {
             id: 'all_rounder',
             title: 'All-Rounder Alchemist',
-            description: 'Demonstrate versatility (Days with 3+ distinct habits completed).',
+            description: 'Demonstrate versatility (Days with 3+ categories completed).',
             levels: [
                 { threshold: 1, name: 'Novice' },
                 { threshold: 5, name: 'Specialist' },
@@ -214,8 +214,6 @@ const Certificates: React.FC = () => {
                     const prevThreshold = m.levels.find(l => l.threshold <= m.currentValue)?.threshold || 0;
                     
                     // Progress Calculation for Bar
-                    // If Unranked, range is 0 to Level 1.
-                    // If Level 1, range is Level 1 to Level 2.
                     const rangeBottom = currentLevelName === "Unranked" ? 0 : prevThreshold;
                     const rangeTop = isMaster ? m.currentValue : nextThreshold; 
                     const range = Math.max(1, rangeTop - rangeBottom);

@@ -2,15 +2,17 @@
 import React from 'react';
 import { CategoryMeta, PotionCategory } from '../types';
 
-export const BASE_POTION_URL = "https://lh3.googleusercontent.com/aida-public/AB6AXuCCFxXk_ynOYi58Di_5xkb4eAmBkD9jwVEuyIvAmibjS24khrBaDqm6M2U1tpZCyRy3uz3d1aDPnsR0muu7pZsIp-JeJ7Dp4EN5hUMPguznYXOlHTquzOVq5x0BGqOamk6Wm9uU6hbvoQn6DB4rrVvFfidXtldrrV1UlP0JdXIArw1vezdQy6WfiL9KMBSrQTEJNZMAGvrM1ql83a-rWKzeq1FRo00TdmSApRhMx4tBSV3BcxpMusMjuiKW08tJysTsitMJrUM9g2M";
+// We now use material symbols for everything to ensure consistency and correct coloring
+// The 'potion' equivalent in Material Symbols is often 'science', 'sanitizer', or 'liquor'
+// We will use 'science' (flask) as the generic potion icon.
 
-export const DEFAULT_CATEGORIES: Record<string, { color: string, filter: string }> = {
-    'General': { color: '#9ca3af', filter: 'grayscale(100%) contrast(1.2)' }, // Gray
-    'Fitness': { color: '#ef4444', filter: 'hue-rotate(0deg) saturate(200%) contrast(1.1)' }, // Red
-    'Learning': { color: '#3b82f6', filter: 'hue-rotate(180deg) saturate(150%)' }, // Blue
-    'Housework': { color: '#eab308', filter: 'hue-rotate(60deg) saturate(200%)' }, // Yellow
-    'Diet': { color: '#22c55e', filter: 'hue-rotate(100deg) saturate(150%)' }, // Green
-    'Mental Health': { color: '#a855f7', filter: 'hue-rotate(240deg) saturate(150%)' }, // Purple
+export const DEFAULT_CATEGORIES: Record<string, { color: string }> = {
+    'General': { color: '#9ca3af' }, // Gray
+    'Fitness': { color: '#ef4444' }, // Red
+    'Learning': { color: '#3b82f6' }, // Blue
+    'Housework': { color: '#eab308' }, // Yellow
+    'Diet': { color: '#22c55e' }, // Green
+    'Mental Health': { color: '#a855f7' }, // Purple
 };
 
 export const getCategoryStyle = (category: PotionCategory, customCategories: CategoryMeta[]) => {
@@ -19,38 +21,36 @@ export const getCategoryStyle = (category: PotionCategory, customCategories: Cat
     if (custom) {
         return {
             color: custom.color,
-            filter: 'none', // Custom ones might use a different icon logic, or we apply a color tint
-            iconType: custom.type
+            iconType: custom.type // 'potion' | 'book' | 'pen'
         };
     }
 
     const standard = DEFAULT_CATEGORIES[category] || DEFAULT_CATEGORIES['General'];
     return {
         color: standard.color,
-        filter: standard.filter,
-        iconType: 'potion'
+        iconType: 'potion' as const
     };
 };
 
 export const renderCategoryIcon = (category: string, customCategories: CategoryMeta[], sizeClass: string = "size-10") => {
     const style = getCategoryStyle(category, customCategories);
     
-    if (style.iconType === 'potion') {
-        return React.createElement('div', {
-            className: `${sizeClass} bg-contain bg-center bg-no-repeat`,
-            style: { 
-                backgroundImage: `url("${BASE_POTION_URL}")`,
-                filter: style.filter
-            }
-        });
-    } else {
-        // Fallback for non-potion icons (Book/Pen)
-        const iconName = style.iconType === 'book' ? 'menu_book' : 'edit';
-        return React.createElement('div', {
-            className: `${sizeClass} flex items-center justify-center rounded-full bg-white/10`,
-            style: { color: style.color }
-        }, 
-            React.createElement('span', { className: "material-symbols-outlined" }, iconName)
-        );
-    }
+    // Map internal types to Material Symbols
+    let iconName = 'science'; // Default Potion
+    if (style.iconType === 'book') iconName = 'menu_book';
+    if (style.iconType === 'pen') iconName = 'edit';
+    
+    // Create the icon container
+    return React.createElement('div', {
+        className: `${sizeClass} flex items-center justify-center rounded-full bg-white/10 shrink-0`,
+        style: { 
+            color: style.color,
+            border: `1px solid ${style.color}40` // Add subtle border matching color
+        }
+    }, 
+        React.createElement('span', { 
+            className: "material-symbols-outlined",
+            style: { fontSize: '1.5em' } // Ensure icon fits well
+        }, iconName)
+    );
 };

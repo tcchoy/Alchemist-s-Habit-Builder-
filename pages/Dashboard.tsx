@@ -8,12 +8,7 @@ const Dashboard: React.FC = () => {
   const { stats, habits, quests, toggleHabit, claimQuestReward, resetDaily, LEVEL_TITLES } = useGame();
 
   const today = new Date().getDay();
-  // Use context helper for isDue check would be cleaner, but simple filter here for display
-  // We rely on the user visiting Brewing Station for full mgmt, here just show what's ostensibly due
-  // Actually, let's just show ALL today-due habits using the context logic if possible, 
-  // but hooks can't be used inside map callback easily. We'll filter first.
-  
-  // Since isHabitDueToday is available from useGame, we can filter properly:
+  // Use context helper for isDue check
   const { isHabitDueToday } = useGame();
   const todayHabits = habits.filter(h => isHabitDueToday(h));
   
@@ -28,11 +23,9 @@ const Dashboard: React.FC = () => {
       // 1. Daily Commission (ID specific or Title specific)
       if (q.id === 'sq_daily_commission') return true;
 
-      // 2. Custom Quests due in < 7 days
+      // 2. Custom Quests due in < 7 days (Active or Completed)
       if (q.type === 'Custom' && q.deadline) {
           const deadline = new Date(q.deadline);
-          // Check if deadline is valid and within range
-          // Also show overdue ones that aren't done yet? prompt implies "next 7 days"
           return deadline >= now && deadline <= sevenDaysFromNow;
       }
       
