@@ -1,4 +1,6 @@
 
+export type Language = 'en' | 'zh-TW';
+
 export interface UserStats {
     level: number;
     xp: number;
@@ -6,27 +8,38 @@ export interface UserStats {
     gold: number;
     gems: number;
     name: string;
-    shopName: string; // New
-    startDate: string; // New
+    shopName: string;
+    startDate: string;
     avatarUrl: string;
     title: string;
     habitSlots: number;
     loginStreak: number;
     lastLoginDate: string;
-    rewardMultiplier: number; // Global multiplier
-    categoryMultipliers: Record<string, number>; // Category specific
-    customCategories: string[]; // User defined categories
+    rewardMultiplier: number;
+    categoryMultipliers: Record<string, number>;
+    customCategories: CategoryMeta[]; 
     purchasedDecorations: {
         shelves: 'none' | 'basic' | 'oak' | 'mahogany';
         cauldron: 'basic' | 'iron' | 'golden' | 'mythic';
         rug: 'none' | 'simple' | 'royal';
     };
+    language: Language;
+    harvestMapLevel: number; // 1-5
 }
 
-export type PotionCategory = 'Health' | 'Knowledge' | 'Housework' | 'Productivity' | string; // string allows custom
-export type FrequencyType = 'daily' | 'specific_days' | 'repeating' | 'monthly_date';
+export interface CategoryMeta {
+    name: string;
+    type: 'potion' | 'book' | 'pen';
+    color: string;
+}
+
+export type PotionCategory = 'General' | 'Learning' | 'Fitness' | 'Diet' | 'Mental Health' | 'Housework' | string;
+
+// Expanded Frequency Options
+export type FrequencyType = 'daily' | 'interval' | 'weekly' | 'monthly_date' | 'monthly_weekday';
+
 export type QuestType = 'System' | 'Custom';
-export type QuestCategory = PotionCategory; // Unified categories
+export type QuestCategory = PotionCategory;
 export type HabitStatus = 'todo' | 'done';
 export type QuestStatus = 'active' | 'completed' | 'claimed';
 
@@ -35,11 +48,18 @@ export interface Habit {
     title: string;
     description: string;
     category: PotionCategory;
+    
+    // Scheduling Logic
     frequency: FrequencyType;
-    days: number[];
-    repeatInterval?: number;
-    monthlyDate?: number;
-    startDate?: string;
+    startDate: string; // ISO Date string
+    interval: number; // "Every X..." (days/weeks/months)
+    
+    // Specific Configs
+    weekDays?: number[]; // 0-6 (Sun-Sat) for 'weekly'
+    monthDay?: number; // 1-31 for 'monthly_date'
+    monthWeek?: number; // 1-4 or 5(last) for 'monthly_weekday'
+    monthWeekDay?: number; // 0-6 for 'monthly_weekday'
+
     rewardGold: number;
     rewardXp: number;
     status: HabitStatus;
@@ -47,6 +67,11 @@ export interface Habit {
     completions: number;
     lastCompletedDate?: string;
     icon?: string;
+    
+    // Legacy support (optional)
+    days: number[]; 
+    repeatInterval?: number; 
+    monthlyDate?: number; 
 }
 
 export interface Quest {
@@ -63,6 +88,7 @@ export interface Quest {
     progress: number;
     maxProgress: number;
     autoCheckKey?: string;
+    recurring?: boolean;
 }
 
 export interface HistoryLog {
@@ -87,8 +113,16 @@ export interface ShopItem {
     description: string;
     costGold: number;
     costGems: number;
-    effect: 'slot_upgrade' | 'cosmetic' | 'multiplier_upgrade' | 'unlock_category' | 'category_multiplier' | 'decoration';
-    value: number; // Generic value
-    meta?: string; // specific target like 'shelves' or 'cauldron'
+    effect: 'slot_upgrade' | 'cosmetic' | 'multiplier_upgrade' | 'unlock_category' | 'category_multiplier' | 'decoration' | 'map_upgrade';
+    value: number;
+    meta?: string;
     minLevel?: number;
+}
+
+export interface Milestone {
+    id: string;
+    title: string;
+    description: string;
+    levels: { threshold: number; name: string }[];
+    currentValue: number;
 }

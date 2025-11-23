@@ -22,10 +22,13 @@ const SidebarItem = ({ to, icon, label, active }: { to: string; icon: string; la
 );
 
 const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-    const { exportSaveData, exportHistoryToCSV, importSaveData, stats, setStats } = useGame();
+    const { exportSaveData, exportHistoryToCSV, importSaveData, stats, setStats, saveToCloud, loadFromCloud, setLanguage } = useGame();
     const [importStatus, setImportStatus] = useState<string>('');
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [newName, setNewName] = useState(stats.shopName);
+    const [cloudUrl, setCloudUrl] = useState('');
+    const [cloudToken, setCloudToken] = useState('');
+    const [cloudStatus, setCloudStatus] = useState('');
 
     const handleDownloadJSON = () => {
         const data = exportSaveData();
@@ -33,19 +36,7 @@ const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `potion_shop_save_${new Date().toISOString().split('T')[0]}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-    };
-
-    const handleDownloadCSV = () => {
-        const data = exportHistoryToCSV();
-        const blob = new Blob([data], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `potion_shop_history_${new Date().toISOString().split('T')[0]}.csv`;
+        a.download = `potion_shop_save.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -61,69 +52,74 @@ const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                 setImportStatus("Success! Reloading...");
                 setTimeout(() => window.location.reload(), 1000);
             } else {
-                setImportStatus("Error: Invalid file format.");
+                setImportStatus("Error: Invalid file.");
             }
         };
         reader.readAsText(file);
     };
 
-    const handleNameChange = () => {
-        if(newName.trim()) {
-            setStats(prev => ({...prev, shopName: newName}));
-            alert("Shop name updated!");
-        }
+    const handleCloudSave = async () => {
+        setCloudStatus('Saving...');
+        const success = await saveToCloud(cloudUrl, cloudToken);
+        setCloudStatus(success ? 'Saved to Cloud!' : 'Failed to Save');
+    };
+
+    const handleCloudLoad = async () => {
+        setCloudStatus('Loading...');
+        const success = await loadFromCloud(cloudUrl, cloudToken);
+        setCloudStatus(success ? 'Loaded! Reloading...' : 'Failed to Load');
+        if (success) setTimeout(() => window.location.reload(), 1000);
     };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
             <div className="bg-surface-dark p-6 rounded-2xl border border-white/10 w-full max-w-md max-h-[90vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-bold text-white font-display">Game Settings</h2>
+                    <h2 className="text-xl font-bold text-white font-display">Settings</h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-white"><span className="material-symbols-outlined">close</span></button>
                 </div>
                 
                 <div className="space-y-6">
-                    <div className="p-4 bg-black/20 rounded-xl border border-white/5">
-                        <h3 className="text-white font-bold mb-2">Shop Details</h3>
-                        <div className="flex gap-2">
-                            <input 
-                                type="text" 
-                                value={newName}
-                                onChange={e => setNewName(e.target.value)}
-                                className="flex-1 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-white text-sm"
-                                placeholder="Enter Shop Name"
-                            />
-                            <button onClick={handleNameChange} className="bg-primary text-black px-3 rounded-lg font-bold text-sm">Save</button>
+                    {/* General */}
+                    <div className="p-4 bg-black/20 rounded-xl border border-white/5 space-y-4">
+                        <div className="flex justify-between items-center">
+                            <span className="text-white text-sm font-bold">Language</span>
+                            <div className="flex gap-2">
+                                <button onClick={() => setLanguage('en')} className={`px-2 py-1 rounded text-xs ${stats.language === 'en' ? 'bg-primary text-black' : 'bg-white/10 text-white'}`}>English</button>
+                                <button onClick={() => setLanguage('zh-TW')} className={`px-2 py-1 rounded text-xs ${stats.language === 'zh-TW' ? 'bg-primary text-black' : 'bg-white/10 text-white'}`}>繁體中文</button>
+                            </div>
+                        </div>
+                        <div>
+                            <span className="text-white text-sm font-bold block mb-1">Shop Name</span>
+                            <div className="flex gap-2">
+                                <input value={newName} onChange={e => setNewName(e.target.value)} className="flex-1 bg-black/30 border border-white/10 rounded px-2 py-1 text-white text-sm" />
+                                <button onClick={() => setStats(prev => ({...prev, shopName: newName}))} className="bg-primary text-black px-3 rounded text-xs font-bold">Save</button>
+                            </div>
                         </div>
                     </div>
 
-                    <div className="p-4 bg-black/20 rounded-xl border border-white/5 flex flex-col gap-3">
-                        <h3 className="text-white font-bold">Data Management</h3>
-                        <p className="text-xs text-gray-400">Export your data to keep it safe.</p>
-                        
-                        <div className="flex gap-2">
-                            <button onClick={handleDownloadJSON} className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-primary/20 text-primary border border-primary/50 font-bold rounded-lg text-sm hover:bg-primary hover:text-black transition-colors">
-                                <span className="material-symbols-outlined text-base">data_object</span> Save File (JSON)
-                            </button>
-                            <button onClick={handleDownloadCSV} className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-500/20 text-green-400 border border-green-500/50 font-bold rounded-lg text-sm hover:bg-green-500 hover:text-black transition-colors">
-                                <span className="material-symbols-outlined text-base">table_chart</span> History (CSV)
-                            </button>
-                        </div>
+                    {/* Cloudflare Sync */}
+                    <div className="p-4 bg-black/20 rounded-xl border border-white/5 space-y-3">
+                         <h3 className="text-white font-bold flex items-center gap-2"><span className="material-symbols-outlined text-orange-400">cloud</span> Cloud Sync</h3>
+                         <input placeholder="Worker URL" value={cloudUrl} onChange={e => setCloudUrl(e.target.value)} className="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white text-xs" />
+                         <input placeholder="API Token" type="password" value={cloudToken} onChange={e => setCloudToken(e.target.value)} className="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white text-xs" />
+                         <div className="flex gap-2">
+                             <button onClick={handleCloudSave} className="flex-1 bg-white/10 hover:bg-white/20 text-white py-2 rounded text-xs font-bold">Save to Cloud</button>
+                             <button onClick={handleCloudLoad} className="flex-1 bg-white/10 hover:bg-white/20 text-white py-2 rounded text-xs font-bold">Load from Cloud</button>
+                         </div>
+                         {cloudStatus && <p className="text-xs text-center text-primary">{cloudStatus}</p>}
+                    </div>
 
-                        <div className="border-t border-white/10 pt-3 mt-1">
-                            <p className="text-xs text-gray-400 mb-2">Import a previous JSON save file.</p>
-                            <input 
-                                type="file" 
-                                ref={fileInputRef}
-                                accept=".json"
-                                onChange={handleFileUpload}
-                                className="hidden"
-                            />
-                            <button onClick={() => fileInputRef.current?.click()} className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white/10 text-white font-bold rounded-lg text-sm hover:bg-white/20">
-                                <span className="material-symbols-outlined text-base">upload</span> Upload Save File
-                            </button>
-                            {importStatus && <p className={`text-xs mt-2 font-bold ${importStatus.includes('Error') ? 'text-red-400' : 'text-green-400'}`}>{importStatus}</p>}
+                    {/* Local File */}
+                    <div className="p-4 bg-black/20 rounded-xl border border-white/5 space-y-3">
+                        <h3 className="text-white font-bold">Local File</h3>
+                        <div className="flex gap-2">
+                            <button onClick={handleDownloadJSON} className="flex-1 bg-primary/20 text-primary border border-primary/50 py-2 rounded text-xs font-bold">JSON Export</button>
+                            <button onClick={() => {const data=exportHistoryToCSV(); const blob=new Blob([data],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='history.csv'; a.click();}} className="flex-1 bg-green-500/20 text-green-400 border border-green-500/50 py-2 rounded text-xs font-bold">CSV History</button>
                         </div>
+                        <button onClick={() => fileInputRef.current?.click()} className="w-full bg-white/10 text-white py-2 rounded text-xs font-bold">Import JSON</button>
+                        <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleFileUpload} />
+                        {importStatus && <p className="text-xs text-center text-green-400">{importStatus}</p>}
                     </div>
                 </div>
             </div>
@@ -133,7 +129,7 @@ const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { pathname } = useLocation();
-  const { stats } = useGame();
+  const { stats, t } = useGame();
   const [showSettings, setShowSettings] = useState(false);
 
   return (
@@ -143,50 +139,33 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <aside className="flex w-64 shrink-0 flex-col gap-8 border-r border-white/5 bg-surface-dark p-4 z-20 hidden md:flex">
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-3 px-2">
-            <div 
-                className="aspect-square size-12 rounded-full bg-cover bg-center bg-no-repeat border-2 border-primary/30" 
-                style={{ backgroundImage: `url("${stats.avatarUrl}")` }}
-            ></div>
+            <div className="aspect-square size-12 rounded-full bg-cover bg-center border-2 border-primary/30" style={{ backgroundImage: `url("${stats.avatarUrl}")` }}></div>
             <div className="flex flex-col">
               <h1 className="font-display text-base font-bold leading-tight text-white truncate max-w-[150px]">{stats.shopName}</h1>
-              <p className="font-display text-xs font-medium text-primary">Level {stats.level} {stats.title}</p>
+              <p className="font-display text-xs font-medium text-primary">Lv.{stats.level} {stats.title}</p>
             </div>
           </div>
-
           <nav className="flex flex-col gap-1 mt-4">
-            <SidebarItem to="/" icon="home" label="Dashboard" active={pathname === '/'} />
-            <SidebarItem to="/habits" icon="science" label="Brewing Station" active={pathname === '/habits'} />
-            <SidebarItem to="/quests" icon="assignment_turned_in" label="Quest Board" active={pathname === '/quests'} />
-            <SidebarItem to="/harvest" icon="forest" label="Wild Harvest" active={pathname === '/harvest'} />
-            <SidebarItem to="/shop" icon="storefront" label="Marketplace" active={pathname === '/shop'} />
-            <SidebarItem to="/journal" icon="menu_book" label="Grimoire" active={pathname === '/journal'} />
-            <SidebarItem to="/calendar" icon="calendar_month" label="Review" active={pathname === '/calendar'} />
+            <SidebarItem to="/" icon="home" label={t('dashboard')} active={pathname === '/'} />
+            <SidebarItem to="/habits" icon="science" label={t('brewing')} active={pathname === '/habits'} />
+            <SidebarItem to="/quests" icon="assignment_turned_in" label={t('quests')} active={pathname === '/quests'} />
+            <SidebarItem to="/harvest" icon="forest" label={t('harvest')} active={pathname === '/harvest'} />
+            <SidebarItem to="/shop" icon="storefront" label={t('market')} active={pathname === '/shop'} />
+            <SidebarItem to="/journal" icon="menu_book" label={t('grimoire')} active={pathname === '/journal'} />
+            <SidebarItem to="/certificates" icon="workspace_premium" label={t('certificates')} active={pathname === '/certificates'} />
+            <SidebarItem to="/calendar" icon="calendar_month" label={t('review')} active={pathname === '/calendar'} />
           </nav>
         </div>
-
         <div className="mt-auto">
-          <p className="text-center text-xs text-gray-600 pb-2">Game auto-saves locally</p>
-          <button 
-            onClick={() => setShowSettings(true)}
-            className="flex h-12 w-full cursor-pointer items-center justify-center overflow-hidden rounded-full bg-primary/10 hover:bg-primary/20 border border-primary/50 px-4 text-sm font-bold leading-normal text-primary transition-colors"
-          >
-            <span className="truncate">Settings / Export</span>
+          <button onClick={() => setShowSettings(true)} className="flex h-12 w-full items-center justify-center rounded-full bg-primary/10 hover:bg-primary/20 border border-primary/50 text-primary font-bold text-sm transition-colors">
+            {t('settings')}
           </button>
         </div>
       </aside>
 
       <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-surface-dark border-b border-white/10 flex items-center justify-between px-4 z-30">
-         <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary">eco</span>
-            <span className="font-bold text-white truncate max-w-[120px]">{stats.shopName}</span>
-         </div>
-         <div className="flex gap-1">
-             <Link to="/" className="p-2 text-white"><span className="material-symbols-outlined">home</span></Link>
-             <Link to="/habits" className="p-2 text-white"><span className="material-symbols-outlined">science</span></Link>
-             <Link to="/quests" className="p-2 text-white"><span className="material-symbols-outlined">assignment_turned_in</span></Link>
-             <Link to="/shop" className="p-2 text-white"><span className="material-symbols-outlined">storefront</span></Link>
-             <button onClick={() => setShowSettings(true)} className="p-2 text-white"><span className="material-symbols-outlined">settings</span></button>
-         </div>
+         <span className="font-bold text-white">{stats.shopName}</span>
+         <button onClick={() => setShowSettings(true)} className="text-white"><span className="material-symbols-outlined">settings</span></button>
       </div>
 
       <main className="flex-1 overflow-y-auto relative scroll-smooth pt-16 md:pt-0">

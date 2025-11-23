@@ -12,19 +12,22 @@ const CreateHabit: React.FC = () => {
 
     const [formData, setFormData] = useState({
         title: '',
-        category: 'Health' as PotionCategory,
-        frequency: 'daily' as FrequencyType,
-        days: [0, 1, 2, 3, 4, 5, 6],
-        repeatInterval: 3,
-        monthlyDate: 1,
-        startDate: new Date().toISOString().split('T')[0],
+        category: 'General' as PotionCategory,
         description: '',
         rewardGold: 20,
         rewardXp: 10,
+        startDate: new Date().toISOString().split('T')[0],
+        
+        // Schedule Configs
+        frequency: 'daily' as FrequencyType,
+        interval: 1, // Every X...
+        weekDays: [] as number[], // For Weekly
+        monthDay: 1, // For Monthly Date
+        monthWeek: 1, // For Monthly Weekday (1st, 2nd...)
+        monthWeekDay: 1, // For Monthly Weekday (Monday...)
     });
 
-    const defaultCategories: PotionCategory[] = ['Health', 'Knowledge', 'Housework', 'Productivity'];
-    const allCategories = [...defaultCategories, ...stats.customCategories];
+    const allCategories = ['General', 'Learning', 'Fitness', 'Diet', 'Mental Health', 'Housework', ...stats.customCategories.map(c => c.name)];
 
     useEffect(() => {
         if (editId) {
@@ -33,137 +36,158 @@ const CreateHabit: React.FC = () => {
                 setFormData({
                     title: existing.title,
                     category: existing.category,
-                    frequency: existing.frequency || 'daily',
-                    days: existing.days,
-                    repeatInterval: existing.repeatInterval || 3,
-                    monthlyDate: existing.monthlyDate || 1,
-                    startDate: existing.startDate || new Date().toISOString().split('T')[0],
                     description: existing.description,
                     rewardGold: existing.rewardGold,
-                    rewardXp: existing.rewardXp
+                    rewardXp: existing.rewardXp,
+                    startDate: existing.startDate || new Date().toISOString().split('T')[0],
+                    frequency: existing.frequency,
+                    interval: existing.interval || 1,
+                    weekDays: existing.weekDays || existing.days || [],
+                    monthDay: existing.monthDay || 1,
+                    monthWeek: existing.monthWeek || 1,
+                    monthWeekDay: existing.monthWeekDay || 1,
                 });
             }
         }
     }, [editId, habits]);
 
-    const isFull = !editId && habits.length >= stats.habitSlots;
-
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (isFull && !editId) return;
-
-        const habitData = {
-            ...formData,
-            days: formData.frequency === 'specific_days' ? formData.days : [],
-            repeatInterval: formData.frequency === 'repeating' ? formData.repeatInterval : undefined,
-            monthlyDate: formData.frequency === 'monthly_date' ? formData.monthlyDate : undefined,
+        // Clean up legacy fields and ensure types
+        const data = { 
+            ...formData, 
+            id: editId || Date.now().toString(), 
+            status: 'todo' as const, 
+            streak: 0, 
+            completions: 0,
+            // legacy fallbacks
+            days: formData.weekDays,
+            repeatInterval: formData.interval
         };
-
-        if (editId) {
-             const existing = habits.find(h => h.id === editId);
-             if(existing) {
-                 updateHabit({ ...existing, ...habitData });
-             }
-        } else {
-            addHabit({
-                id: Date.now().toString(),
-                ...habitData,
-                status: 'todo',
-                streak: 0,
-                completions: 0,
-                icon: "https://lh3.googleusercontent.com/aida-public/AB6AXuCgFy8VQrawy8L6X4gPgRQnTME_AKW9vjNn2cNiFsYHqyBpLRxQwnI_vgVYARQxij-vSADr4xWOuVmr344fTR8ozve0FeQ4sfvCxSwei4b5aIc2M8D3zTUWy6UtioHMPpLcyDneTMw8kak63PR1zbIxTw3gUWCSBMfCo5942_mYNaHa9LciO6nFdTXkoA99nMB6YdnV7QbXTmTZnCZzr-4TEnb3BbWbfTqFSZ-6qyzWTHFQ82To5T-SXkpG5ehFOlwJbu8AwUVoYnk", 
-            });
-        }
+        if (editId) updateHabit(data as any);
+        else addHabit(data as any);
         navigate('/habits');
     };
 
-    const toggleDay = (dayIndex: number) => {
-        setFormData(prev => {
-            if (prev.days.includes(dayIndex)) {
-                return { ...prev, days: prev.days.filter(d => d !== dayIndex) };
-            } else {
-                return { ...prev, days: [...prev.days, dayIndex] };
-            }
-        });
+    const toggleWeekDay = (day: number) => {
+        setFormData(p => ({
+            ...p, 
+            weekDays: p.weekDays.includes(day) ? p.weekDays.filter(d => d !== day) : [...p.weekDays, day]
+        }));
     };
 
-    if (isFull) {
-        return (
-            <div className="flex flex-col items-center justify-center h-[60vh] text-center p-4">
-                <span className="material-symbols-outlined text-6xl text-gray-600 mb-4">lock</span>
-                <h1 className="text-2xl font-bold text-white mb-2">Brewing Station Full</h1>
-                <p className="text-gray-400 mb-6">You have reached the maximum number of active potions.</p>
-                <Link to="/shop" className="bg-primary text-black px-6 py-3 rounded-full font-bold">Upgrade Capacity in Shop</Link>
-            </div>
-        );
-    }
-
-    const weekDays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-
     return (
-        <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="mb-8">
-                 <h1 className="text-4xl font-bold text-white font-display mb-2">{editId ? 'Modify Recipe' : 'New Brewing Recipe'}</h1>
-                 <p className="text-gray-400">Define the ingredients and schedule for your potion.</p>
-            </div>
-            <form onSubmit={handleSubmit} className="flex flex-col gap-6 bg-surface-dark p-8 rounded-2xl border border-white/5">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <label className="flex flex-col gap-2">
-                        <span className="text-white font-medium">Potion Name</span>
-                        <input required type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="form-input w-full rounded-xl bg-background-dark border-white/10 text-white placeholder-gray-600 focus:border-primary focus:ring-primary h-12" placeholder="e.g. Morning Meditation" />
-                    </label>
-                    <label className="flex flex-col gap-2">
-                        <span className="text-white font-medium">Category</span>
-                        <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value as PotionCategory})} className="form-select w-full rounded-xl bg-background-dark border-white/10 text-white focus:border-primary focus:ring-primary h-12">
-                            {allCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                        </select>
-                    </label>
+        <div className="max-w-2xl mx-auto animate-in fade-in duration-500">
+            <h1 className="text-3xl font-bold text-white mb-6 font-display">{editId ? 'Edit Habit' : 'New Habit'}</h1>
+            <form onSubmit={handleSubmit} className="flex flex-col gap-6 bg-surface-dark p-8 rounded-xl border border-white/5">
+                
+                {/* Basic Info */}
+                <div className="space-y-4">
+                    <h3 className="text-white font-bold text-sm border-b border-white/10 pb-2">Basic Info</h3>
+                    <input required placeholder="Habit Title" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white" />
+                    <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white">
+                        {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <textarea placeholder="Description..." value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white h-20 resize-none" />
                 </div>
-                <div className="flex flex-col gap-4 bg-black/20 p-4 rounded-xl border border-white/5">
-                    <h3 className="text-white font-bold mb-2 flex items-center gap-2"><span className="material-symbols-outlined text-primary">calendar_month</span>Scheduling</h3>
-                    <label className="flex flex-col gap-2">
-                        <span className="text-gray-400 text-xs font-bold uppercase">Repeat Pattern</span>
-                        <select value={formData.frequency} onChange={e => setFormData({...formData, frequency: e.target.value as FrequencyType})} className="form-select w-full rounded-xl bg-background-dark border-white/10 text-white focus:border-primary focus:ring-primary h-12">
-                            <option value="daily">Every Day</option>
-                            <option value="specific_days">Specific Days of Week</option>
-                            <option value="repeating">Every X Days</option>
-                            <option value="monthly_date">Monthly on Date</option>
-                        </select>
-                    </label>
-                    {formData.frequency === 'specific_days' && (
-                        <div className="flex flex-col gap-2">
-                            <span className="text-gray-400 text-xs font-bold uppercase">Brewing Days</span>
-                            <div className="flex gap-2">{weekDays.map((day, idx) => { const isSelected = formData.days.includes(idx); return (<button key={idx} type="button" onClick={() => toggleDay(idx)} className={`size-10 rounded-full font-bold transition-colors ${isSelected ? 'bg-primary text-black' : 'bg-background-dark text-gray-500 border border-white/10'}`}>{day}</button>)})}</div>
+
+                {/* Scheduling */}
+                <div className="space-y-4">
+                    <h3 className="text-white font-bold text-sm border-b border-white/10 pb-2">Schedule</h3>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <label className="text-xs text-gray-400">Start Date</label>
+                            <input type="date" value={formData.startDate} onChange={e => setFormData({...formData, startDate: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded p-2 text-white text-sm" />
                         </div>
-                    )}
-                    {formData.frequency === 'repeating' && (
-                        <div className="grid grid-cols-2 gap-4">
-                            <label className="flex flex-col gap-2"><span className="text-gray-400 text-xs font-bold uppercase">Interval (Days)</span><input type="number" min="1" value={formData.repeatInterval} onChange={e => setFormData({...formData, repeatInterval: parseInt(e.target.value)})} className="form-input w-full rounded-xl bg-background-dark border-white/10 text-white h-12" /></label>
-                            <label className="flex flex-col gap-2"><span className="text-gray-400 text-xs font-bold uppercase">Start Date</span><input type="date" value={formData.startDate} onChange={e => setFormData({...formData, startDate: e.target.value})} className="form-input w-full rounded-xl bg-background-dark border-white/10 text-white h-12" /></label>
+                        <div className="space-y-1">
+                            <label className="text-xs text-gray-400">Pattern</label>
+                            <select value={formData.frequency} onChange={e => setFormData({...formData, frequency: e.target.value as FrequencyType})} className="w-full bg-black/30 border border-white/10 rounded p-2 text-white text-sm">
+                                <option value="daily">Daily</option>
+                                <option value="interval">Every X Days</option>
+                                <option value="weekly">Weekly Pattern</option>
+                                <option value="monthly_date">Monthly (Specific Date)</option>
+                                <option value="monthly_weekday">Monthly (Specific Weekday)</option>
+                            </select>
                         </div>
-                    )}
-                    {formData.frequency === 'monthly_date' && (
-                        <label className="flex flex-col gap-2"><span className="text-gray-400 text-xs font-bold uppercase">Day of Month (1-31)</span><input type="number" min="1" max="31" value={formData.monthlyDate} onChange={e => setFormData({...formData, monthlyDate: parseInt(e.target.value)})} className="form-input w-full rounded-xl bg-background-dark border-white/10 text-white h-12" /></label>
-                    )}
+                    </div>
+
+                    {/* Dynamic Inputs based on Frequency */}
+                    <div className="p-4 bg-black/20 rounded-lg border border-white/5 space-y-3">
+                        {formData.frequency === 'daily' && (
+                            <p className="text-gray-400 text-sm italic">Repeat every day.</p>
+                        )}
+
+                        {formData.frequency === 'interval' && (
+                            <div className="flex items-center gap-2">
+                                <span className="text-gray-300 text-sm">Repeat every</span>
+                                <input type="number" min="1" value={formData.interval} onChange={e => setFormData({...formData, interval: parseInt(e.target.value)})} className="w-20 bg-black/30 border border-white/10 rounded p-1 text-white text-center" />
+                                <span className="text-gray-300 text-sm">days.</span>
+                            </div>
+                        )}
+
+                        {formData.frequency === 'weekly' && (
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-gray-300 text-sm">Repeat every</span>
+                                    <input type="number" min="1" value={formData.interval} onChange={e => setFormData({...formData, interval: parseInt(e.target.value)})} className="w-20 bg-black/30 border border-white/10 rounded p-1 text-white text-center" />
+                                    <span className="text-gray-300 text-sm">weeks on:</span>
+                                </div>
+                                <div className="flex gap-2">
+                                    {['S','M','T','W','T','F','S'].map((d, i) => (
+                                        <button type="button" key={i} onClick={() => toggleWeekDay(i)} className={`size-8 rounded-full text-xs font-bold ${formData.weekDays.includes(i) ? 'bg-primary text-black' : 'bg-white/10 text-gray-400'}`}>{d}</button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {formData.frequency === 'monthly_date' && (
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-gray-300 text-sm">Repeat every</span>
+                                    <input type="number" min="1" value={formData.interval} onChange={e => setFormData({...formData, interval: parseInt(e.target.value)})} className="w-20 bg-black/30 border border-white/10 rounded p-1 text-white text-center" />
+                                    <span className="text-gray-300 text-sm">months on day:</span>
+                                    <input type="number" min="1" max="31" value={formData.monthDay} onChange={e => setFormData({...formData, monthDay: parseInt(e.target.value)})} className="w-16 bg-black/30 border border-white/10 rounded p-1 text-white text-center" />
+                                </div>
+                            </div>
+                        )}
+
+                        {formData.frequency === 'monthly_weekday' && (
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-gray-300 text-sm">Repeat every</span>
+                                    <input type="number" min="1" value={formData.interval} onChange={e => setFormData({...formData, interval: parseInt(e.target.value)})} className="w-20 bg-black/30 border border-white/10 rounded p-1 text-white text-center" />
+                                    <span className="text-gray-300 text-sm">months on the:</span>
+                                </div>
+                                <div className="flex gap-2 flex-wrap">
+                                    <select value={formData.monthWeek} onChange={e => setFormData({...formData, monthWeek: parseInt(e.target.value)})} className="bg-black/30 border border-white/10 rounded p-2 text-white text-sm">
+                                        <option value={1}>1st</option>
+                                        <option value={2}>2nd</option>
+                                        <option value={3}>3rd</option>
+                                        <option value={4}>4th</option>
+                                        <option value={5}>Last</option>
+                                    </select>
+                                    <select value={formData.monthWeekDay} onChange={e => setFormData({...formData, monthWeekDay: parseInt(e.target.value)})} className="bg-black/30 border border-white/10 rounded p-2 text-white text-sm">
+                                        <option value={1}>Monday</option>
+                                        <option value={2}>Tuesday</option>
+                                        <option value={3}>Wednesday</option>
+                                        <option value={4}>Thursday</option>
+                                        <option value={5}>Friday</option>
+                                        <option value={6}>Saturday</option>
+                                        <option value={0}>Sunday</option>
+                                    </select>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
-                <label className="flex flex-col gap-2">
-                    <span className="text-white font-medium">Description</span>
-                    <textarea required value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="form-textarea w-full rounded-xl bg-background-dark border-white/10 text-white placeholder-gray-600 focus:border-primary focus:ring-primary min-h-[120px]" placeholder="Describe the habit..." />
-                </label>
-                <div className="flex flex-col gap-2 bg-background-dark p-4 rounded-xl border border-white/5">
-                     <span className="text-gray-400 text-sm font-bold uppercase tracking-wider">Rewards (Per Completion)</span>
-                     <div className="grid grid-cols-2 gap-4 mt-2">
-                        <label className="flex flex-col"><span className="text-xs text-gray-500 mb-1">Gold</span><input type="number" min="0" max="100" value={formData.rewardGold} onChange={e => setFormData({...formData, rewardGold: parseInt(e.target.value)})} className="rounded-lg bg-surface-dark border-white/10 text-white text-sm" /></label>
-                        <label className="flex flex-col"><span className="text-xs text-gray-500 mb-1">XP</span><input type="number" min="0" max="100" value={formData.rewardXp} onChange={e => setFormData({...formData, rewardXp: parseInt(e.target.value)})} className="rounded-lg bg-surface-dark border-white/10 text-white text-sm" /></label>
-                     </div>
-                </div>
-                <div className="flex items-center gap-4 mt-4 pt-4 border-t border-white/5">
-                    <button type="submit" className="flex-1 h-12 rounded-xl bg-primary text-black font-bold hover:bg-primary/90 transition-colors">{editId ? 'Update Recipe' : 'Add to Schedule'}</button>
-                    <Link to="/habits" className="h-12 px-6 flex items-center rounded-xl bg-background-dark text-gray-400 hover:text-white font-bold border border-white/10 transition-colors">Cancel</Link>
+
+                <div className="flex gap-4 pt-4 border-t border-white/10">
+                    <button type="submit" className="flex-1 bg-primary text-black font-bold py-3 rounded-lg hover:bg-primary/90">Save Habit</button>
+                    <Link to="/habits" className="flex-1 text-center py-3 text-gray-400 hover:text-white">Cancel</Link>
                 </div>
             </form>
         </div>
     );
 };
-
 export default CreateHabit;

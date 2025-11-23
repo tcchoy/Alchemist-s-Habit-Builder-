@@ -11,6 +11,7 @@ import Harvesting from './pages/Harvesting';
 import QuestBoard from './pages/QuestBoard';
 import Shop from './pages/Shop';
 import CalendarReview from './pages/CalendarReview';
+import Certificates from './pages/Certificates';
 
 const App: React.FC = () => {
   return (
@@ -26,6 +27,7 @@ const App: React.FC = () => {
             <Route path="/quests" element={<QuestBoard />} />
             <Route path="/shop" element={<Shop />} />
             <Route path="/calendar" element={<CalendarReview />} />
+            <Route path="/certificates" element={<Certificates />} />
           </Routes>
         </Layout>
       </Router>
