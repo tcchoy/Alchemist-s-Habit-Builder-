@@ -25,6 +25,7 @@ interface GameContextType {
     buyShopItem: (item: ShopItem, customParam?: string, metaParam?: any) => boolean;
     addJournalEntry: (entry: JournalEntry) => void;
     resetDaily: () => void;
+    resetGame: () => void;
     claimHarvestReward: () => { gold: number, xp: number, gems: number };
     isHabitDueToday: (habit: Habit) => boolean;
     getNextDueDate: (habit: Habit) => string;
@@ -398,6 +399,11 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }));
     };
 
+    const resetGame = () => {
+        localStorage.clear();
+        window.location.reload();
+    };
+
     const addJournalEntry = (entry: JournalEntry) => {
         setJournalEntries(prev => [entry, ...prev]);
         checkSystemQuests('journal_entry');
@@ -535,7 +541,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         <GameContext.Provider value={{
             stats, setStats, habits, quests, journalEntries, historyLogs, habitIdeas, setHabitIdeas,
             addGold, addGems, addXp, addHabit, updateHabit, deleteHabit, addQuest, deleteQuest,
-            toggleHabit, completeQuest, claimQuestReward, buyShopItem, addJournalEntry, resetDaily,
+            toggleHabit, completeQuest, claimQuestReward, buyShopItem, addJournalEntry, resetDaily, resetGame,
             claimHarvestReward, isHabitDueToday, getNextDueDate, exportSaveData, exportHistoryToCSV, importSaveData,
             saveToCloud, loadFromCloud, t, setLanguage, LEVEL_TITLES, MAPS
         }}>

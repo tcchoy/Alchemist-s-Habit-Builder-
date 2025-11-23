@@ -22,7 +22,7 @@ const SidebarItem = ({ to, icon, label, active }: { to: string; icon: string; la
 );
 
 const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-    const { exportSaveData, exportHistoryToCSV, importSaveData, stats, setStats, saveToCloud, loadFromCloud, setLanguage } = useGame();
+    const { exportSaveData, exportHistoryToCSV, importSaveData, stats, setStats, saveToCloud, loadFromCloud, setLanguage, resetGame } = useGame();
     const [importStatus, setImportStatus] = useState<string>('');
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [newName, setNewName] = useState(stats.shopName);
@@ -69,6 +69,12 @@ const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         const success = await loadFromCloud(cloudUrl, cloudToken);
         setCloudStatus(success ? 'Loaded! Reloading...' : 'Failed to Load');
         if (success) setTimeout(() => window.location.reload(), 1000);
+    };
+
+    const handleReset = () => {
+        if (confirm("Are you sure you want to completely reset your game progress? This cannot be undone.")) {
+            resetGame();
+        }
     };
 
     return (
@@ -120,6 +126,13 @@ const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                         <button onClick={() => fileInputRef.current?.click()} className="w-full bg-white/10 text-white py-2 rounded text-xs font-bold">Import JSON</button>
                         <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleFileUpload} />
                         {importStatus && <p className="text-xs text-center text-green-400">{importStatus}</p>}
+                    </div>
+
+                    {/* Reset */}
+                    <div className="p-4 bg-red-900/10 rounded-xl border border-red-900/30">
+                        <button onClick={handleReset} className="w-full bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/50 py-2 rounded text-xs font-bold">
+                            Reset Game Data
+                        </button>
                     </div>
                 </div>
             </div>
