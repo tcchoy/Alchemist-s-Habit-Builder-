@@ -72,11 +72,11 @@ export const LEVEL_TITLES = [
 
 // JRPG Style Maps
 export const MAPS = [
-    { level: 1, name: "Whisperwind Woodland", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Whisperwind%20Woodland.png", rewardRange: "10-50g" }, // Forest
-    { level: 2, name: "Gloomrot Bog", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Gloomrot%20Bog.png", rewardRange: "20-100g" }, // Misty/Swampy
-    { level: 3, name: "Leviathan Sea", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Leviathan%20Sea.png", rewardRange: "50-150g" }, // Ocean
-    { level: 4, name: "Crimson Volcano", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Crimson%20Volcano.png", rewardRange: "100-250g" }, // Lava/Volcano (Abstract)
-    { level: 5, name: "Voidlight Caverns", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Voidlight%20Caverns.png", rewardRange: "200-500g" }, // Cave
+    { level: 1, name: "Whisperwind Woodland", image: "https://images.unsplash.com/photo-1511497584788-876760111969?q=80&w=1632&auto=format&fit=crop", rewardRange: "10-50g", xpRange: "10-50XP" }, // Forest
+    { level: 2, name: "Gloomrot Bog", image: "https://images.unsplash.com/photo-1542226601-5bc4df3d0859?q=80&w=1470&auto=format&fit=crop", rewardRange: "20-100g", xpRange: "20-100XP" }, // Misty/Swampy
+    { level: 3, name: "Leviathan Sea", image: "https://images.unsplash.com/photo-1496099580453-33237194883c?q=80&w=1472&auto=format&fit=crop", rewardRange: "50-150g", xpRange: "50-150XP" }, // Ocean
+    { level: 4, name: "Crimson Volcano", image: "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?q=80&w=1511&auto=format&fit=crop", rewardRange: "100-250g", xpRange: "100-250XP" }, // Lava/Volcano (Abstract)
+    { level: 5, name: "Voidlight Caverns", image: "https://images.unsplash.com/photo-1516934024742-b461fba47600?q=80&w=1374&auto=format&fit=crop", rewardRange: "200-500g", xpRange: "200-500XP" }, // Cave
 ];
 
 const DICTIONARY: Record<Language, Record<string, string>> = {
@@ -187,19 +187,21 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setHistoryLogs(prev => [newLog, ...prev]);
     };
 
-    // Persistence
+    // Persistence & Penalties
     useEffect(() => {
         const loadData = () => {
             const savedStats = localStorage.getItem('pps_stats');
+            let currentStats = INITIAL_STATS;
             if (savedStats) {
                 const parsed = JSON.parse(savedStats);
-                setStats({ 
+                currentStats = { 
                     ...INITIAL_STATS, 
                     ...parsed,
                     customCategories: parsed.customCategories || [],
                     language: parsed.language || 'en',
                     harvestMapLevel: parsed.harvestMapLevel || 1
-                });
+                };
+                setStats(currentStats);
             }
             const savedHabits = localStorage.getItem('pps_habits');
             if (savedHabits) setHabits(JSON.parse(savedHabits));
@@ -221,6 +223,45 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             if (savedLogs) setHistoryLogs(JSON.parse(savedLogs));
             const savedIdeas = localStorage.getItem('pps_ideas');
             if (savedIdeas) setHabitIdeas(savedIdeas);
+
+            // PENALTY CHECK
+            // Check if user missed yesterday and didn't complete daily commission
+            const today = new Date().toISOString().split('T')[0];
+            const lastLogin = currentStats.lastLoginDate;
+            
+            if (lastLogin !== today) {
+                 const lastLoginDate = new Date(lastLogin);
+                 const yesterday = new Date();
+                 yesterday.setDate(yesterday.getDate() - 1);
+                 const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+                 // If last login was strictly before yesterday, they missed a day
+                 if (lastLoginDate < new Date(yesterdayStr)) {
+                     // Check if daily commission was done on the last active day? 
+                     // Simplified: Just deduct a "maintenance fee" for missing days
+                     const missedDays = Math.floor((new Date(today).getTime() - lastLoginDate.getTime()) / (1000 * 3600 * 24)) - 1;
+                     if (missedDays > 0) {
+                         const penalty = Math.min(currentStats.gold, missedDays * 10);
+                         if (penalty > 0) {
+                             setStats(prev => ({ ...prev, gold: prev.gold - penalty, loginStreak: 0, lastLoginDate: today }));
+                             logHistory(`Shop neglected for ${missedDays} days`, 'penalty', `-${penalty}g`);
+                             // We show toast in a timeout to ensure UI is ready
+                             setTimeout(() => showToast(`Shop neglected! Paid ${penalty}g maintenance.`, 'error'), 1000);
+                         } else {
+                             setStats(prev => ({ ...prev, loginStreak: 0, lastLoginDate: today }));
+                         }
+                     } else {
+                         // Consecutive login
+                         setStats(prev => ({ ...prev, loginStreak: prev.loginStreak + 1, lastLoginDate: today }));
+                         checkSystemQuests('streak_commission');
+                     }
+                 } else {
+                     // Logged in yesterday
+                     setStats(prev => ({ ...prev, loginStreak: prev.loginStreak + 1, lastLoginDate: today }));
+                     checkSystemQuests('streak_commission');
+                 }
+            }
+
             setLoaded(true);
         };
         loadData();
@@ -255,6 +296,13 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 const categoriesDone = new Set(habits.filter(h => h.status === 'done').map(h => h.category));
                 if (categoriesDone.size >= 3) return { ...q, status: 'completed', progress: 3 };
                 return { ...q, progress: categoriesDone.size };
+            }
+
+            if (q.autoCheckKey === 'streak_commission' && triggerType === 'streak_commission') {
+                // Check stats.loginStreak for simpler streak logic or use specialized logic
+                 const streak = stats.loginStreak;
+                 if (streak >= q.maxProgress) return { ...q, status: 'completed', progress: q.maxProgress };
+                 return { ...q, progress: streak };
             }
 
             if (q.autoCheckKey === triggerType) {
@@ -358,8 +406,16 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             addGold(gold);
             addXp(xp);
             logHistory(`${habit.title}|${habit.category}`, 'habit', `+${gold}g, +${xp}XP`);
+
+            // Check if habit reached a mastery milestone (multiple of 20)
+            const newCompletions = (habit.completions || 0) + 1;
+            if (newCompletions > 0 && newCompletions % 20 === 0) {
+                 addGems(10);
+                 showToast(`Mastery! ${habit.title} brewed ${newCompletions} times! +10 Gems`, 'success');
+            }
             
             // Calculate completed count *after* this one is marked done
+            // NOTE: 'prev' still has old status. We need to count old done + 1
             const currentDoneCount = prev.filter(h => h.status === 'done').length;
             setTimeout(() => {
                 checkSystemQuests('daily_habits', currentDoneCount + 1);
@@ -439,10 +495,12 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const levelMult = stats.harvestMapLevel;
         const baseGold = (Math.floor(Math.random() * 40) + 10) * levelMult;
         const baseXp = (Math.floor(Math.random() * 40) + 10) * levelMult;
-        const gemChance = Math.random();
+        
+        // Gem Logic: 50% chance 0, 50% chance 1-level
+        const gemRoll = Math.random();
         let gems = 0;
-        if (gemChance < 0.10) {
-            gems = Math.floor(Math.random() * levelMult) + 1;
+        if (gemRoll < 0.5) { // 50% chance
+             gems = Math.floor(Math.random() * levelMult) + 1;
         }
 
         addGold(baseGold);
@@ -466,7 +524,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     const resetGame = () => {
-        // Explicitly clear keys to ensure fresh start
         localStorage.removeItem('pps_stats');
         localStorage.removeItem('pps_habits');
         localStorage.removeItem('pps_quests');

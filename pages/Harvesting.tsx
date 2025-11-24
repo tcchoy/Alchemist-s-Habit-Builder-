@@ -152,8 +152,8 @@ const Harvesting: React.FC = () => {
                                                     <span className="text-green-400 font-mono">{map.xpRange}</span>
                                                 </div>
                                                 <div className="flex justify-between items-center text-xs">
-                                                    <span className="text-stone-500 flex items-center gap-1"><span className="material-symbols-outlined text-[10px]">diamond</span> Rare</span>
-                                                    <span className="text-pink-300 font-mono">1-{map.level}</span>
+                                                    <span className="text-stone-500 flex items-center gap-1"><span className="material-symbols-outlined text-[10px]">diamond</span> Gems(rare)</span>
+                                                    <span className="text-pink-300 font-mono">0-{map.level}</span>
                                                 </div>
                                             </div>
                                         </div>
