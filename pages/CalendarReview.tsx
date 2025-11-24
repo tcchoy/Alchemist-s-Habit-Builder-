@@ -16,13 +16,22 @@ const CalendarReview: React.FC = () => {
             let xp = 0;
             let completed = 0;
             logs.forEach(l => {
-                if (l.rewardSummary) {
-                    if(l.type === 'habit' || l.type === 'quest') completed++;
-                    const parts = l.rewardSummary.split(', ');
-                    parts.forEach(p => {
-                        if (p.includes('g')) gold += parseInt(p) || 0;
-                        if (p.includes('XP')) xp += parseInt(p) || 0;
-                    });
+                // Ignore shop purchases for "Earned" metrics (shop logs usually have negative values in rewardSummary like "-200g")
+                // Or shop logs are type 'shop'. We want 'earned', so filter out 'shop'.
+                if (l.type === 'shop') return;
+
+                if (l.type === 'habit' || l.type === 'quest' || l.type === 'harvest') {
+                     if(l.type === 'habit' || l.type === 'quest') completed++;
+                     
+                     if (l.rewardSummary) {
+                        // Regex to capture positive integers before 'g' or 'XP'
+                        // Matches "+50g", "50g", "+100XP"
+                        const goldMatch = l.rewardSummary.match(/[+]?(\d+)g/);
+                        const xpMatch = l.rewardSummary.match(/[+]?(\d+)XP/);
+                        
+                        if (goldMatch) gold += parseInt(goldMatch[1]);
+                        if (xpMatch) xp += parseInt(xpMatch[1]);
+                     }
                 }
             });
             return { gold, xp, completed };

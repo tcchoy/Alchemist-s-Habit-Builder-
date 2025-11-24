@@ -89,8 +89,7 @@ const HabitManager: React.FC = () => {
     const navigate = useNavigate();
     
     const recommendedRecipes = useMemo(() => {
-        const unused = RECIPE_POOL.filter(recipe => !habits.some(h => h.title === recipe.title));
-        return unused.slice(0, 5); 
+        return RECIPE_POOL.filter(recipe => !habits.some(h => h.title === recipe.title));
     }, [habits]);
 
     const filteredHabits = filter === 'All' ? habits : habits.filter(h => h.category === filter);
@@ -162,7 +161,7 @@ const HabitManager: React.FC = () => {
                         <span className="material-symbols-outlined text-yellow-400">menu_book</span>
                         Recipe Book
                     </h3>
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                         {recommendedRecipes.length === 0 && <p className="text-stone-500 text-sm italic">No new recipes found.</p>}
                         {recommendedRecipes.map((r, i) => (
                             <div key={i} className="flex justify-between items-center p-3 rounded-lg bg-black/20 hover:bg-white/5 border border-transparent hover:border-white/10 group transition-all">

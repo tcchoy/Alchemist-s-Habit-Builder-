@@ -1,10 +1,10 @@
 
 export const CUSTOMER_AVATARS = [
-    "https://api.dicebear.com/9.x/adventurer/svg?seed=Felix&backgroundColor=b6e3f4", // Knight/Blue
-    "https://api.dicebear.com/9.x/adventurer/svg?seed=Sophia&backgroundColor=ffdfbf", // Mage/Pink
-    "https://api.dicebear.com/9.x/adventurer/svg?seed=Willow&backgroundColor=c0aede", // Witch/Purple
-    "https://api.dicebear.com/9.x/adventurer/svg?seed=Elias&backgroundColor=d1d4f9", // Rogue/Dark
-    "https://api.dicebear.com/9.x/adventurer/svg?seed=Jasper&backgroundColor=ffd5dc", // Healer/Red
+    "https://api.dicebear.com/9.x/adventurer/svg?seed=Kael&backgroundColor=ffdfbf", // Soft peach background
+    "https://api.dicebear.com/9.x/adventurer/svg?seed=Luna&backgroundColor=ffd5dc", // Soft pink background
+    "https://api.dicebear.com/9.x/adventurer/svg?seed=Milo&backgroundColor=b6e3f4", // Soft blue background
+    "https://api.dicebear.com/9.x/adventurer/svg?seed=Nora&backgroundColor=c0aede", // Soft purple background
+    "https://api.dicebear.com/9.x/adventurer/svg?seed=Finn&backgroundColor=d1d4f9", // Soft indigo background
 ];
 
 export const getQuestAvatar = (questId: string) => {

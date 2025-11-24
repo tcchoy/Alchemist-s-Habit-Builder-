@@ -18,6 +18,7 @@ const Harvesting: React.FC = () => {
         const harvests = historyLogs.filter(l => l.type === 'harvest');
         let totalGold = 0;
         let totalXp = 0;
+        let totalGems = 0;
         const recent = harvests.slice(0, 10);
         
         harvests.forEach(l => {
@@ -26,10 +27,11 @@ const Harvesting: React.FC = () => {
                 parts.forEach(p => {
                     if (p.includes('g')) totalGold += parseInt(p) || 0;
                     if (p.includes('XP')) totalXp += parseInt(p) || 0;
+                    if (p.includes('gems')) totalGems += parseInt(p) || 0;
                 });
             }
         });
-        return { totalGold, totalXp, recent };
+        return { totalGold, totalXp, totalGems, recent };
     }, [historyLogs]);
 
     useEffect(() => {
@@ -71,6 +73,13 @@ const Harvesting: React.FC = () => {
                         <p className="text-[10px] text-stone-500 font-bold uppercase tracking-wider">Total Gold</p>
                         <span className="text-yellow-400 font-bold text-lg flex items-center justify-end gap-1">
                             {harvestStats.totalGold} <span className="material-symbols-outlined text-sm">monetization_on</span>
+                        </span>
+                    </div>
+                    <div className="w-px bg-white/10"></div>
+                    <div className="text-right">
+                        <p className="text-[10px] text-stone-500 font-bold uppercase tracking-wider">Total Gems</p>
+                        <span className="text-pink-400 font-bold text-lg flex items-center justify-end gap-1">
+                            {harvestStats.totalGems} <span className="material-symbols-outlined text-sm">diamond</span>
                         </span>
                     </div>
                     <div className="w-px bg-white/10"></div>
@@ -137,6 +146,10 @@ const Harvesting: React.FC = () => {
                                                 <div className="flex justify-between items-center text-xs">
                                                     <span className="text-stone-500 flex items-center gap-1"><span className="material-symbols-outlined text-[10px]">monetization_on</span> Gold</span>
                                                     <span className="text-yellow-400 font-mono">{map.rewardRange}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center text-xs">
+                                                    <span className="text-stone-500 flex items-center gap-1"><span className="material-symbols-outlined text-[10px]">psychology</span> XP</span>
+                                                    <span className="text-green-400 font-mono">{map.xpRange}</span>
                                                 </div>
                                                 <div className="flex justify-between items-center text-xs">
                                                     <span className="text-stone-500 flex items-center gap-1"><span className="material-symbols-outlined text-[10px]">diamond</span> Rare</span>

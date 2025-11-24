@@ -42,7 +42,7 @@ interface GameContextType {
     isBrewing: boolean;
     finishBrewing: () => void;
     LEVEL_TITLES: {level: number, title: string}[];
-    MAPS: { level: number, name: string, image: string, rewardRange: string }[];
+    MAPS: { level: number, name: string, image: string, rewardRange: string, xpRange: string }[];
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -77,7 +77,7 @@ export const MAPS = [
     { level: 3, name: "Leviathan Sea", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Leviathan%20Sea.png", rewardRange: "50-150g" }, // Ocean
     { level: 4, name: "Crimson Volcano", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Crimson%20Volcano.png", rewardRange: "100-250g" }, // Lava/Volcano (Abstract)
     { level: 5, name: "Voidlight Caverns", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Voidlight%20Caverns.png", rewardRange: "200-500g" }, // Cave
-    ];
+];
 
 const DICTIONARY: Record<Language, Record<string, string>> = {
     'en': {
@@ -466,6 +466,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     const resetGame = () => {
+        // Explicitly clear keys to ensure fresh start
         localStorage.removeItem('pps_stats');
         localStorage.removeItem('pps_habits');
         localStorage.removeItem('pps_quests');
