@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { UserStats, Habit, Quest, JournalEntry, ShopItem, HistoryLog, FrequencyType, PotionCategory, Language, CategoryMeta, Toast } from '../types';
 
 interface GameContextType {
@@ -163,6 +163,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [toasts, setToasts] = useState<Toast[]>([]);
     const [loaded, setLoaded] = useState(false);
     
+    // Safety Lock to prevent auto-save from overwriting reset/import actions
+    const isResetting = useRef(false);
+    
     // Brewing Animation State
     const [isBrewing, setIsBrewing] = useState(false);
     const [pendingHabitId, setPendingHabitId] = useState<string | null>(null);
@@ -225,7 +228,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             if (savedIdeas) setHabitIdeas(savedIdeas);
 
             // PENALTY CHECK
-            // Check if user missed yesterday and didn't complete daily commission
             const today = new Date().toISOString().split('T')[0];
             const lastLogin = currentStats.lastLoginDate;
             
@@ -237,26 +239,21 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
                  // If last login was strictly before yesterday, they missed a day
                  if (lastLoginDate < new Date(yesterdayStr)) {
-                     // Check if daily commission was done on the last active day? 
-                     // Simplified: Just deduct a "maintenance fee" for missing days
                      const missedDays = Math.floor((new Date(today).getTime() - lastLoginDate.getTime()) / (1000 * 3600 * 24)) - 1;
                      if (missedDays > 0) {
                          const penalty = Math.min(currentStats.gold, missedDays * 10);
                          if (penalty > 0) {
                              setStats(prev => ({ ...prev, gold: prev.gold - penalty, loginStreak: 0, lastLoginDate: today }));
                              logHistory(`Shop neglected for ${missedDays} days`, 'penalty', `-${penalty}g`);
-                             // We show toast in a timeout to ensure UI is ready
                              setTimeout(() => showToast(`Shop neglected! Paid ${penalty}g maintenance.`, 'error'), 1000);
                          } else {
                              setStats(prev => ({ ...prev, loginStreak: 0, lastLoginDate: today }));
                          }
                      } else {
-                         // Consecutive login
                          setStats(prev => ({ ...prev, loginStreak: prev.loginStreak + 1, lastLoginDate: today }));
                          checkSystemQuests('streak_commission');
                      }
                  } else {
-                     // Logged in yesterday
                      setStats(prev => ({ ...prev, loginStreak: prev.loginStreak + 1, lastLoginDate: today }));
                      checkSystemQuests('streak_commission');
                  }
@@ -267,8 +264,11 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         loadData();
     }, []);
 
+    // Auto-Save Logic
     useEffect(() => {
         if (!loaded) return;
+        if (isResetting.current) return; // Do not save if we are in the middle of a reset/import
+
         localStorage.setItem('pps_stats', JSON.stringify(stats));
         localStorage.setItem('pps_habits', JSON.stringify(habits));
         localStorage.setItem('pps_quests', JSON.stringify(quests));
@@ -299,7 +299,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             }
 
             if (q.autoCheckKey === 'streak_commission' && triggerType === 'streak_commission') {
-                // Check stats.loginStreak for simpler streak logic or use specialized logic
                  const streak = stats.loginStreak;
                  if (streak >= q.maxProgress) return { ...q, status: 'completed', progress: q.maxProgress };
                  return { ...q, progress: streak };
@@ -407,15 +406,12 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             addXp(xp);
             logHistory(`${habit.title}|${habit.category}`, 'habit', `+${gold}g, +${xp}XP`);
 
-            // Check if habit reached a mastery milestone (multiple of 20)
             const newCompletions = (habit.completions || 0) + 1;
             if (newCompletions > 0 && newCompletions % 20 === 0) {
                  addGems(10);
                  showToast(`Mastery! ${habit.title} brewed ${newCompletions} times! +10 Gems`, 'success');
             }
             
-            // Calculate completed count *after* this one is marked done
-            // NOTE: 'prev' still has old status. We need to count old done + 1
             const currentDoneCount = prev.filter(h => h.status === 'done').length;
             setTimeout(() => {
                 checkSystemQuests('daily_habits', currentDoneCount + 1);
@@ -433,12 +429,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const isDone = habit.status === 'done';
 
         if (!isDone) {
-            // Start Brewing Animation
             setPendingHabitId(id);
             setIsBrewing(true);
-            // Completion Logic happens in finishBrewing()
         } else {
-            // Undo (no animation needed for undo)
              setHabits(prev => {
                  const currentDoneCount = prev.filter(h => h.status === 'done').length;
                  setTimeout(() => {
@@ -524,6 +517,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     const resetGame = () => {
+        isResetting.current = true;
         localStorage.removeItem('pps_stats');
         localStorage.removeItem('pps_habits');
         localStorage.removeItem('pps_quests');
@@ -639,19 +633,31 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const rows = historyLogs.map(l => `${l.date},"${l.message.replace(/"/g, '""')}",${l.type},"${l.rewardSummary?.replace(/"/g, '""') || ''}"`).join('\n');
         return header + rows;
     };
+    
     const importSaveData = (json: string) => {
         try {
+            // 1. Engage Safety Lock to prevent auto-save from overwriting imported data before reload
+            isResetting.current = true;
+
             const data = JSON.parse(json);
-            if(data.stats) setStats(data.stats);
-            if(data.habits) setHabits(data.habits);
-            if(data.quests) setQuests(data.quests);
-            if(data.journalEntries) setJournalEntries(data.journalEntries);
-            if(data.historyLogs) setHistoryLogs(data.historyLogs);
-            if(data.habitIdeas) setHabitIdeas(data.habitIdeas);
-            showToast("Save data loaded successfully", 'success');
+            
+            // 2. Merge imported stats with defaults to ensure new fields (like harvestMapLevel) exist
+            const statsToSave = { ...INITIAL_STATS, ...data.stats };
+            
+            // 3. Write directly to LocalStorage (Source of Truth)
+            if(data.stats) localStorage.setItem('pps_stats', JSON.stringify(statsToSave));
+            if(data.habits) localStorage.setItem('pps_habits', JSON.stringify(data.habits));
+            if(data.quests) localStorage.setItem('pps_quests', JSON.stringify(data.quests));
+            if(data.journalEntries) localStorage.setItem('pps_journal', JSON.stringify(data.journalEntries));
+            if(data.historyLogs) localStorage.setItem('pps_logs', JSON.stringify(data.historyLogs));
+            if(data.habitIdeas) localStorage.setItem('pps_ideas', data.habitIdeas);
+            
+            showToast("Save data loaded successfully. Reloading...", 'success');
             return true;
-        } catch { 
-            showToast("Failed to load save data", 'error');
+        } catch (e) { 
+            isResetting.current = false; // Unlock if failed
+            console.error("Import Failed", e);
+            showToast("Failed to load save data. Invalid format.", 'error');
             return false; 
         }
     };

@@ -44,11 +44,7 @@ const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const [cloudToken, setCloudToken] = useState('');
     const [cloudStatus, setCloudStatus] = useState('');
 
-    const handleDownloadJSON = () => {
-        const data = exportSaveData();
-        const blob = new Blob([data], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        
+    const getTimestampedFilename = (prefix: string, ext: string) => {
         const now = new Date();
         const dateStr = now.getFullYear().toString() +
                         (now.getMonth()+1).toString().padStart(2, '0') +
@@ -56,11 +52,28 @@ const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         const timeStr = now.getHours().toString().padStart(2, '0') +
                         now.getMinutes().toString().padStart(2, '0') +
                         now.getSeconds().toString().padStart(2, '0');
-        const filename = `alchemist_habit_shop_${dateStr}_${timeStr}.json`;
+        return `${prefix}_${dateStr}_${timeStr}.${ext}`;
+    };
 
+    const handleDownloadJSON = () => {
+        const data = exportSaveData();
+        const blob = new Blob([data], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = filename;
+        a.download = getTimestampedFilename('alchemist_habit_shop', 'json');
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    };
+
+    const handleDownloadCSV = () => {
+        const data = exportHistoryToCSV();
+        const blob = new Blob([data], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = getTimestampedFilename('history', 'csv');
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -69,6 +82,10 @@ const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        
+        // Reset the input value so the same file can be selected again if needed
+        e.target.value = "";
+
         const reader = new FileReader();
         reader.onload = (event) => {
             const text = event.target?.result as string;
@@ -130,7 +147,8 @@ const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
                     {/* Cloudflare Sync */}
                     <div className="p-4 bg-black/20 rounded-xl border border-white/5 space-y-3">
-                         <h3 className="text-white font-bold flex items-center gap-2"><span className="material-symbols-outlined text-orange-400">cloud</span> Cloud Sync</h3>
+                         <h3 className="text-white font-bold flex items-center gap-2"><span className="material-symbols-outlined text-orange-400">cloud</span> Cloud Sync (Cross-Device)</h3>
+                         <p className="text-[10px] text-stone-400">Sync data between devices using a compatible server endpoint.</p>
                          <input placeholder="Worker URL" value={cloudUrl} onChange={e => setCloudUrl(e.target.value)} className="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white text-xs" />
                          <input placeholder="API Token" type="password" value={cloudToken} onChange={e => setCloudToken(e.target.value)} className="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white text-xs" />
                          <div className="flex gap-2">
@@ -142,10 +160,10 @@ const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
                     {/* Local File */}
                     <div className="p-4 bg-black/20 rounded-xl border border-white/5 space-y-3">
-                        <h3 className="text-white font-bold">Local File</h3>
+                        <h3 className="text-white font-bold">Local Backup</h3>
                         <div className="flex gap-2">
                             <button onClick={handleDownloadJSON} className="flex-1 bg-primary/20 text-primary border border-primary/50 py-2 rounded text-xs font-bold">JSON Export</button>
-                            <button onClick={() => {const data=exportHistoryToCSV(); const blob=new Blob([data],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='history.csv'; a.click();}} className="flex-1 bg-green-500/20 text-green-400 border border-green-500/50 py-2 rounded text-xs font-bold">CSV History</button>
+                            <button onClick={handleDownloadCSV} className="flex-1 bg-green-500/20 text-green-400 border border-green-500/50 py-2 rounded text-xs font-bold">CSV History</button>
                         </div>
                         <button onClick={() => fileInputRef.current?.click()} className="w-full bg-white/10 text-white py-2 rounded text-xs font-bold">Import JSON</button>
                         <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleFileUpload} />
