@@ -5,81 +5,72 @@ interface BrewingAnimationProps {
     onComplete: () => void;
 }
 
+const IMAGES = [
+    "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/potion_making1.jpg", // Adding
+    "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/potion_making2.jpg", // Stirring
+    "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/potion_success1.jpg"  // Success
+];
+
 const BrewingAnimation: React.FC<BrewingAnimationProps> = ({ onComplete }) => {
     const [step, setStep] = useState(0);
 
     useEffect(() => {
-        // Timeline: Total 6 Seconds
-        // 0s-1s: Ingredient Drop (Bounce)
-        // 1s-2s: Ingredient Land + Start Stir
-        // 2s-4s: Stirring (Bubbles)
-        // 4s-5s: Smoke/Poof (Pot Disappears)
-        // 5s-6s: Success Potion (Sparkles)
+        // Timeline: Total 5 Seconds
+        // 0s - 1.5s: Ingredient Adding (Image 1)
+        // 1.5s - 3.5s: Stirring (Image 2)
+        // 3.5s - 5.0s: Success (Image 3)
         
-        const t1 = setTimeout(() => setStep(1), 100);   // Drop
-        const t2 = setTimeout(() => setStep(2), 2000);  // Stir
-        const t3 = setTimeout(() => setStep(3), 4000);  // Smoke
-        const t4 = setTimeout(() => setStep(4), 5000);  // Reveal
-        const t5 = setTimeout(onComplete, 6000);      // End
+        const t1 = setTimeout(() => setStep(1), 1500);  // Switch to Stirring
+        const t2 = setTimeout(() => setStep(2), 3500);  // Switch to Success
+        const t3 = setTimeout(onComplete, 5000);      // End
 
         return () => {
-            clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); clearTimeout(t5);
+            clearTimeout(t1); clearTimeout(t2); clearTimeout(t3);
         };
     }, [onComplete]);
 
+    const getCaption = () => {
+        if (step === 0) return "Adding Ingredients...";
+        if (step === 1) return "Mixing Essence...";
+        return "Brewing Complete!";
+    };
+
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className="relative size-80 flex items-center justify-center">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className="relative w-[90%] max-w-md aspect-[4/3] bg-[#3e3223] rounded-xl border-4 border-[#8b7355] shadow-2xl overflow-hidden flex flex-col">
                 
-                {/* STEP 0-2: CAULDRON */}
-                {step < 3 && (
-                    <div className={`absolute bottom-0 text-9xl transition-all duration-500 ${step === 2 ? 'animate-bounce' : 'animate-in zoom-in'}`}>
-                        <span className="material-symbols-outlined text-[180px] text-stone-300 drop-shadow-2xl">soup_kitchen</span>
-                    </div>
-                )}
+                {/* RPG Decor Frame Inner */}
+                <div className="absolute inset-1 border border-[#5d4a35] rounded-lg pointer-events-none z-20"></div>
+                <div className="absolute top-2 left-2 size-3 bg-[#fcd34d] rounded-full shadow-inner z-20 border border-[#b45309]"></div>
+                <div className="absolute top-2 right-2 size-3 bg-[#fcd34d] rounded-full shadow-inner z-20 border border-[#b45309]"></div>
+                <div className="absolute bottom-2 left-2 size-3 bg-[#fcd34d] rounded-full shadow-inner z-20 border border-[#b45309]"></div>
+                <div className="absolute bottom-2 right-2 size-3 bg-[#fcd34d] rounded-full shadow-inner z-20 border border-[#b45309]"></div>
 
-                {/* STEP 1: INGREDIENT DROP (0s - 2s) */}
-                {step === 1 && (
-                    <div className="absolute top-0 animate-in slide-in-from-top-full duration-1000 fade-out-0 zoom-in bounce-in">
-                         <span className="material-symbols-outlined text-7xl text-green-400 drop-shadow-lg">eco</span>
-                    </div>
-                )}
+                {/* Image Display */}
+                <div className="flex-1 relative bg-black">
+                    {IMAGES.map((src, index) => (
+                        <img 
+                            key={index}
+                            src={src} 
+                            alt={`Step ${index}`}
+                            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${step === index ? 'opacity-100' : 'opacity-0'}`}
+                        />
+                    ))}
+                    
+                    {/* Flash effect on success */}
+                    {step === 2 && (
+                        <div className="absolute inset-0 bg-white/30 animate-pulse z-10 pointer-events-none"></div>
+                    )}
+                </div>
 
-                {/* STEP 2: STIRRING / BUBBLES (2s - 4s) */}
-                {step === 2 && (
-                    <div className="absolute bottom-24 flex gap-4 justify-center w-full">
-                        <span className="material-symbols-outlined text-primary text-5xl animate-ping">bubble_chart</span>
-                        <span className="material-symbols-outlined text-primary text-3xl animate-bounce delay-150">bubble_chart</span>
-                        <span className="material-symbols-outlined text-primary text-4xl animate-ping delay-300">bubble_chart</span>
+                {/* Text Box Area */}
+                <div className="h-16 bg-[#fdf6e3] border-t-4 border-[#8b7355] flex items-center justify-center p-2 relative z-10">
+                    <div className="w-full h-full border border-[#d4c5a9] border-dashed rounded flex items-center justify-center bg-[#fff9f0]">
+                        <p className="font-display text-[#5d4a35] font-bold text-lg animate-in slide-in-from-bottom-2 fade-in duration-300 key={step}">
+                            {getCaption()}
+                        </p>
                     </div>
-                )}
-
-                {/* STEP 3: SMOKE / POOF (4s - 5s) */}
-                {step === 3 && (
-                    <div className="absolute z-20 animate-in zoom-in fade-in duration-500">
-                        <span className="material-symbols-outlined text-[200px] text-gray-500 opacity-80 blur-md animate-pulse">cloud</span>
-                    </div>
-                )}
-
-                {/* STEP 4: SUCCESS POTION (5s - 6s) */}
-                {step === 4 && (
-                    <div className="absolute z-20 animate-in zoom-in spin-in-6 duration-700">
-                        <div className="relative">
-                            {/* Glow Effect */}
-                            <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full scale-150 animate-pulse"></div>
-                            
-                            <span className="material-symbols-outlined text-[140px] text-primary drop-shadow-[0_0_50px_rgba(251,191,36,1)]">science</span>
-                            
-                            {/* Sparkles */}
-                            <span className="absolute -top-8 -right-8 material-symbols-outlined text-5xl text-yellow-200 animate-pulse">sparkle</span>
-                            <span className="absolute -bottom-6 -left-8 material-symbols-outlined text-4xl text-yellow-200 animate-pulse delay-75">sparkle</span>
-                            <span className="absolute top-0 -left-10 material-symbols-outlined text-3xl text-yellow-100 animate-pulse delay-150">star</span>
-                        </div>
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-8 whitespace-nowrap text-center">
-                            <span className="text-white font-bold text-3xl font-display text-shadow-lg animate-in slide-in-from-bottom-5">Masterpiece!</span>
-                        </div>
-                    </div>
-                )}
+                </div>
             </div>
         </div>
     );

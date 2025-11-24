@@ -70,13 +70,13 @@ export const LEVEL_TITLES = [
     { level: 20, title: "Arcane Legend" },
 ];
 
-// JRPG Style Maps
+// JRPG Style Maps with User Provided Images
 export const MAPS = [
-    { level: 1, name: "Whisperwind Woodland", image: "https://images.unsplash.com/photo-1511497584788-876760111969?q=80&w=1632&auto=format&fit=crop", rewardRange: "10-50g", xpRange: "10-50XP" }, // Forest
-    { level: 2, name: "Gloomrot Bog", image: "https://images.unsplash.com/photo-1542226601-5bc4df3d0859?q=80&w=1470&auto=format&fit=crop", rewardRange: "20-100g", xpRange: "20-100XP" }, // Misty/Swampy
-    { level: 3, name: "Leviathan Sea", image: "https://images.unsplash.com/photo-1496099580453-33237194883c?q=80&w=1472&auto=format&fit=crop", rewardRange: "50-150g", xpRange: "50-150XP" }, // Ocean
-    { level: 4, name: "Crimson Volcano", image: "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?q=80&w=1511&auto=format&fit=crop", rewardRange: "100-250g", xpRange: "100-250XP" }, // Lava/Volcano (Abstract)
-    { level: 5, name: "Voidlight Caverns", image: "https://images.unsplash.com/photo-1516934024742-b461fba47600?q=80&w=1374&auto=format&fit=crop", rewardRange: "200-500g", xpRange: "200-500XP" }, // Cave
+    { level: 1, name: "Whisperwind Woodland", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Whisperwind%20Woodland.png", rewardRange: "10-50g", xpRange: "10-50XP" }, // Forest
+    { level: 2, name: "Gloomrot Bog", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Gloomrot%20Bog.png", rewardRange: "20-100g", xpRange: "20-100XP" }, // Misty/Swampy
+    { level: 3, name: "Leviathan Sea", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Leviathan%20Sea.png", rewardRange: "50-150g", xpRange: "50-150XP" }, // Ocean
+    { level: 4, name: "Crimson Volcano", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Crimson%20Volcano.png", rewardRange: "100-250g", xpRange: "100-250XP" }, // Lava/Volcano (Abstract)
+    { level: 5, name: "Voidlight Caverns", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Voidlight%20Caverns.png", rewardRange: "200-500g", xpRange: "200-500XP" }, // Cave
 ];
 
 const DICTIONARY: Record<Language, Record<string, string>> = {
