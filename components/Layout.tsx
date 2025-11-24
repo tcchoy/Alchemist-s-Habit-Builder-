@@ -34,9 +34,19 @@ const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         const data = exportSaveData();
         const blob = new Blob([data], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
+        
+        const now = new Date();
+        const dateStr = now.getFullYear().toString() +
+                        (now.getMonth()+1).toString().padStart(2, '0') +
+                        now.getDate().toString().padStart(2, '0');
+        const timeStr = now.getHours().toString().padStart(2, '0') +
+                        now.getMinutes().toString().padStart(2, '0') +
+                        now.getSeconds().toString().padStart(2, '0');
+        const filename = `alchemist_habit_shop_${dateStr}_${timeStr}.json`;
+
         const a = document.createElement('a');
         a.href = url;
-        a.download = `potion_shop_save.json`;
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);

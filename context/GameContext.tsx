@@ -65,12 +65,13 @@ export const LEVEL_TITLES = [
     { level: 20, title: "Arcane Legend" },
 ];
 
+// Updated to use local assets in public/assets/ folder
 export const MAPS = [
-    { level: 1, name: "Whisperwind Woodland", image: "https://lh3.googleusercontent.com/aida-public/AB6AXuD8Q0S2U4V6W8X0Y2Z5a7b9c1d3e5f7g9h1i3j5k7l9m1n3o5p7q9r1s3t5u7v9w1x3y5z7a9b1c3d5e7f9g1h3i5j7k9l1m3n5o7p9q1r3s5t7u9v1w3x5y7z9a1b3c5d7e9f1g1h3i5j7k9l1m3n5o7p9q1r3s5t7u9v1w3x5y7z9a1b3c5d7e9f1g3h5i7j9", rewardRange: "10-50g" },
-    { level: 2, name: "Gloomrot Bog", image: "https://lh3.googleusercontent.com/aida-public/AB6AXuB2M4N6P8R0T1V3W5Y7X9Z1b3d5f7g9h1i3j5k7l9m1n3o5p7q9r1s3t5u7v9w1x3y5z7a9b1c3d5e7f9g1h3i5j7k9l1m3n5o7p9q1r3s5t7u9v1w3x5y7z9a1b3c5d7e9f1g1h3i5j7k9l1m3n5o7p9q1r3s5t7u9v1w3x5y7z9a1b3c5d7e9f1g3h5i7j9k1l3m5", rewardRange: "20-100g" },
-    { level: 3, name: "Leviathan Sea", image: "https://lh3.googleusercontent.com/aida-public/AB6AXuC4O6P8R0T1V3W5Y7X9Z1b3d5f7g9h1i3j5k7l9m1n3o5p7q9r1s3t5u7v9w1x3y5z7a9b1c3d5e7f9g1h3i5j7k9l1m3n5o7p9q1r3s5t7u9v1w3x5y7z9a1b3c5d7e9f1g3h5i7j9k1l3m5n7o9", rewardRange: "50-150g" },
-    { level: 4, name: "Crimson Volcano", image: "https://lh3.googleusercontent.com/aida-public/AB6AXuDT9P6O1hE5eT_K73Ua1yM29uXN22i1FwM8T7F7QnO6-1X6J3Z5Y2c9V4b8N0m1L5k2J7H4G9F6D3C8B0A1E5G2I9K4L7M3N6O8P0Q2R5S9T1U4V6W8X0Y2Z5a7b9c1d3e5f7g9h1i3j5k7l9m1n3o5", rewardRange: "100-250g" },
-    { level: 5, name: "Voidlight Caverns", image: "https://lh3.googleusercontent.com/aida-public/AB6AXuA6O8P0Q2R5S9T1U4V6W8X0Y2Z5a7b9c1d3e5f7g9h1i3j5k7l9m1n3o5p7q9r1s3t5u7v9w1x3y5z7a9b1c3d5e7f9g1h3i5j7k9l1m3n5o7p9q1r3s5t7u9v1w3x5y7z9a1b3c5d7e9f1g3h5", rewardRange: "200-500g" },
+    { level: 1, name: "Whisperwind Woodland", image: "https://drive.google.com/file/d/1VEjwZ198Yx5LrQmG6tUlZTzI6AWr5XUB/preview", rewardRange: "10-50g" },
+    { level: 2, name: "Gloomrot Bog", image: "/assets/Gloomrot Bog.png", rewardRange: "20-100g" },
+    { level: 3, name: "Leviathan Sea", image: "/assets/Leviathan Sea.png", rewardRange: "50-150g" },
+    { level: 4, name: "Crimson Volcano", image: "/assets/Crimson Volcano.png", rewardRange: "100-250g" },
+    { level: 5, name: "Voidlight Caverns", image: "/assets/Voidlight Caverns.png", rewardRange: "200-500g" },
 ];
 
 const DICTIONARY: Record<Language, Record<string, string>> = {
@@ -330,6 +331,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 addXp(xp);
                 logHistory(`${habit.title}|${habit.category}`, 'habit', `+${gold}g, +${xp}XP`);
                 
+                // IMPORTANT: Use the new count for system quests (current + 1)
                 const currentDoneCount = prev.filter(h => h.status === 'done').length;
                 setTimeout(() => {
                     checkSystemQuests('daily_habits', currentDoneCount + 1);
