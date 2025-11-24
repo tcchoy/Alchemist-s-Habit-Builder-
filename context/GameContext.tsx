@@ -32,7 +32,7 @@ interface GameContextType {
     getNextDueDate: (habit: Habit) => string;
     exportSaveData: () => string;
     exportHistoryToCSV: () => string;
-    importSaveData: (json: string) => boolean;
+    importSaveData: (json: string) => void;
     saveToCloud: (url: string, token: string) => Promise<boolean>;
     loadFromCloud: (url: string, token: string) => Promise<boolean>;
     t: (key: string) => string;
@@ -70,13 +70,13 @@ export const LEVEL_TITLES = [
     { level: 20, title: "Arcane Legend" },
 ];
 
-// JRPG Style Maps with User Provided Images
+// JRPG Style Maps with User Provided Images via Github Raw
 export const MAPS = [
-    { level: 1, name: "Whisperwind Woodland", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Whisperwind%20Woodland.png", rewardRange: "10-50g", xpRange: "10-50XP" }, // Forest
-    { level: 2, name: "Gloomrot Bog", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Gloomrot%20Bog.png", rewardRange: "20-100g", xpRange: "20-100XP" }, // Misty/Swampy
-    { level: 3, name: "Leviathan Sea", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Leviathan%20Sea.png", rewardRange: "50-150g", xpRange: "50-150XP" }, // Ocean
-    { level: 4, name: "Crimson Volcano", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Crimson%20Volcano.png", rewardRange: "100-250g", xpRange: "100-250XP" }, // Lava/Volcano (Abstract)
-    { level: 5, name: "Voidlight Caverns", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Voidlight%20Caverns.png", rewardRange: "200-500g", xpRange: "200-500XP" }, // Cave
+    { level: 1, name: "Whisperwind Woodland", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Whisperwind%20Woodland.png", rewardRange: "10-50g", xpRange: "10-50XP" }, 
+    { level: 2, name: "Gloomrot Bog", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Gloomrot%20Bog.png", rewardRange: "20-100g", xpRange: "20-100XP" },
+    { level: 3, name: "Leviathan Sea", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Leviathan%20Sea.png", rewardRange: "50-150g", xpRange: "50-150XP" },
+    { level: 4, name: "Crimson Volcano", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Crimson%20Volcano.png", rewardRange: "100-250g", xpRange: "100-250XP" },
+    { level: 5, name: "Voidlight Caverns", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Voidlight%20Caverns.png", rewardRange: "200-500g", xpRange: "200-500XP" },
 ];
 
 const DICTIONARY: Record<Language, Record<string, string>> = {
@@ -190,76 +190,84 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setHistoryLogs(prev => [newLog, ...prev]);
     };
 
-    // Persistence & Penalties
+    // Persistence & Penalties (Robust Loading)
     useEffect(() => {
         const loadData = () => {
-            const savedStats = localStorage.getItem('pps_stats');
-            let currentStats = INITIAL_STATS;
-            if (savedStats) {
-                const parsed = JSON.parse(savedStats);
-                currentStats = { 
-                    ...INITIAL_STATS, 
-                    ...parsed,
-                    customCategories: parsed.customCategories || [],
-                    language: parsed.language || 'en',
-                    harvestMapLevel: parsed.harvestMapLevel || 1
-                };
-                setStats(currentStats);
-            }
-            const savedHabits = localStorage.getItem('pps_habits');
-            if (savedHabits) setHabits(JSON.parse(savedHabits));
-            const savedQuests = localStorage.getItem('pps_quests');
-            if (savedQuests) setQuests(JSON.parse(savedQuests));
-            
-            // Merge System Quests if new ones were added
-            const savedQuestsList = savedQuests ? JSON.parse(savedQuests) as Quest[] : SEED_QUESTS;
-            SEED_QUESTS.forEach(sq => {
-                if (!savedQuestsList.some(q => q.id === sq.id)) {
-                    savedQuestsList.push(sq);
+            try {
+                const savedStats = localStorage.getItem('pps_stats');
+                let currentStats = INITIAL_STATS;
+                if (savedStats) {
+                    const parsed = JSON.parse(savedStats);
+                    currentStats = { 
+                        ...INITIAL_STATS, 
+                        ...parsed,
+                        customCategories: parsed.customCategories || [],
+                        language: parsed.language || 'en',
+                        harvestMapLevel: parsed.harvestMapLevel || 1
+                    };
+                    setStats(currentStats);
                 }
-            });
-            setQuests(savedQuestsList);
 
-            const savedJournal = localStorage.getItem('pps_journal');
-            if (savedJournal) setJournalEntries(JSON.parse(savedJournal));
-            const savedLogs = localStorage.getItem('pps_logs');
-            if (savedLogs) setHistoryLogs(JSON.parse(savedLogs));
-            const savedIdeas = localStorage.getItem('pps_ideas');
-            if (savedIdeas) setHabitIdeas(savedIdeas);
+                const savedHabits = localStorage.getItem('pps_habits');
+                if (savedHabits) setHabits(JSON.parse(savedHabits));
+                
+                const savedQuests = localStorage.getItem('pps_quests');
+                const savedQuestsList = savedQuests ? JSON.parse(savedQuests) as Quest[] : SEED_QUESTS;
+                // Merge new system quests if missing from save
+                SEED_QUESTS.forEach(sq => {
+                    if (!savedQuestsList.some(q => q.id === sq.id)) {
+                        savedQuestsList.push(sq);
+                    }
+                });
+                setQuests(savedQuestsList);
 
-            // PENALTY CHECK
-            const today = new Date().toISOString().split('T')[0];
-            const lastLogin = currentStats.lastLoginDate;
-            
-            if (lastLogin !== today) {
-                 const lastLoginDate = new Date(lastLogin);
-                 const yesterday = new Date();
-                 yesterday.setDate(yesterday.getDate() - 1);
-                 const yesterdayStr = yesterday.toISOString().split('T')[0];
+                const savedJournal = localStorage.getItem('pps_journal');
+                if (savedJournal) setJournalEntries(JSON.parse(savedJournal));
+                
+                const savedLogs = localStorage.getItem('pps_logs');
+                if (savedLogs) setHistoryLogs(JSON.parse(savedLogs));
+                
+                const savedIdeas = localStorage.getItem('pps_ideas');
+                if (savedIdeas) setHabitIdeas(savedIdeas);
 
-                 // If last login was strictly before yesterday, they missed a day
-                 if (lastLoginDate < new Date(yesterdayStr)) {
-                     const missedDays = Math.floor((new Date(today).getTime() - lastLoginDate.getTime()) / (1000 * 3600 * 24)) - 1;
-                     if (missedDays > 0) {
-                         const penalty = Math.min(currentStats.gold, missedDays * 10);
-                         if (penalty > 0) {
-                             setStats(prev => ({ ...prev, gold: prev.gold - penalty, loginStreak: 0, lastLoginDate: today }));
-                             logHistory(`Shop neglected for ${missedDays} days`, 'penalty', `-${penalty}g`);
-                             setTimeout(() => showToast(`Shop neglected! Paid ${penalty}g maintenance.`, 'error'), 1000);
+                // PENALTY CHECK
+                const today = new Date().toISOString().split('T')[0];
+                const lastLogin = currentStats.lastLoginDate;
+                
+                if (lastLogin !== today) {
+                     const lastLoginDate = new Date(lastLogin);
+                     const yesterday = new Date();
+                     yesterday.setDate(yesterday.getDate() - 1);
+                     const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+                     // If last login was strictly before yesterday, they missed a day
+                     if (lastLoginDate < new Date(yesterdayStr)) {
+                         const missedDays = Math.floor((new Date(today).getTime() - lastLoginDate.getTime()) / (1000 * 3600 * 24)) - 1;
+                         if (missedDays > 0) {
+                             const penalty = Math.min(currentStats.gold, missedDays * 10);
+                             if (penalty > 0) {
+                                 setStats(prev => ({ ...prev, gold: prev.gold - penalty, loginStreak: 0, lastLoginDate: today }));
+                                 logHistory(`Shop neglected for ${missedDays} days`, 'penalty', `-${penalty}g`);
+                                 setTimeout(() => showToast(`Shop neglected! Paid ${penalty}g maintenance.`, 'error'), 1000);
+                             } else {
+                                 setStats(prev => ({ ...prev, loginStreak: 0, lastLoginDate: today }));
+                             }
                          } else {
-                             setStats(prev => ({ ...prev, loginStreak: 0, lastLoginDate: today }));
+                             setStats(prev => ({ ...prev, loginStreak: prev.loginStreak + 1, lastLoginDate: today }));
+                             checkSystemQuests('streak_commission');
                          }
                      } else {
                          setStats(prev => ({ ...prev, loginStreak: prev.loginStreak + 1, lastLoginDate: today }));
                          checkSystemQuests('streak_commission');
                      }
-                 } else {
-                     setStats(prev => ({ ...prev, loginStreak: prev.loginStreak + 1, lastLoginDate: today }));
-                     checkSystemQuests('streak_commission');
-                 }
+                }
+            } catch (error) {
+                console.error("Data corruption detected during load. Falling back to safe defaults.", error);
+                showToast("Data corruption detected. Some progress may be reset.", 'error');
+                setStats(INITIAL_STATS);
+            } finally {
+                setLoaded(true);
             }
-
-            setLoaded(true);
         };
         loadData();
     }, []);
@@ -269,12 +277,16 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (!loaded) return;
         if (isResetting.current) return; // Do not save if we are in the middle of a reset/import
 
-        localStorage.setItem('pps_stats', JSON.stringify(stats));
-        localStorage.setItem('pps_habits', JSON.stringify(habits));
-        localStorage.setItem('pps_quests', JSON.stringify(quests));
-        localStorage.setItem('pps_journal', JSON.stringify(journalEntries));
-        localStorage.setItem('pps_logs', JSON.stringify(historyLogs));
-        localStorage.setItem('pps_ideas', habitIdeas);
+        try {
+            localStorage.setItem('pps_stats', JSON.stringify(stats));
+            localStorage.setItem('pps_habits', JSON.stringify(habits));
+            localStorage.setItem('pps_quests', JSON.stringify(quests));
+            localStorage.setItem('pps_journal', JSON.stringify(journalEntries));
+            localStorage.setItem('pps_logs', JSON.stringify(historyLogs));
+            localStorage.setItem('pps_ideas', habitIdeas);
+        } catch (e) {
+            console.error("Auto-save failed", e);
+        }
     }, [stats, habits, quests, journalEntries, historyLogs, habitIdeas, loaded]);
 
     // Check System Quests
@@ -516,22 +528,56 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }));
     };
 
+    // Robust Reset Game Logic
     const resetGame = () => {
-        isResetting.current = true;
-        localStorage.removeItem('pps_stats');
-        localStorage.removeItem('pps_habits');
-        localStorage.removeItem('pps_quests');
-        localStorage.removeItem('pps_journal');
-        localStorage.removeItem('pps_logs');
-        localStorage.removeItem('pps_ideas');
-        localStorage.clear();
-        window.location.reload();
+        isResetting.current = true; // Engage safety lock
+        localStorage.clear(); // Wipe all data
+        window.location.reload(); // Immediately force reload to clear memory state
     };
 
     const addJournalEntry = (entry: JournalEntry) => {
         setJournalEntries(prev => [entry, ...prev]);
         checkSystemQuests('journal_entry');
         showToast("Journal entry inscribed", 'success');
+    };
+
+    const exportSaveData = () => JSON.stringify({ stats, habits, quests, journalEntries, historyLogs, habitIdeas, version: 1.6 });
+    
+    const exportHistoryToCSV = () => {
+        const header = "Date,Message,Type,RewardSummary\n";
+        const rows = historyLogs.map(l => 
+            `${l.date},"${(l.message || '').replace(/"/g, '""')}",${l.type},"${(l.rewardSummary || '').replace(/"/g, '""')}"`
+        ).join('\n');
+        return header + rows;
+    };
+    
+    // Robust Import Logic
+    const importSaveData = (json: string) => {
+        try {
+            const data = JSON.parse(json);
+            
+            // 1. Engage Safety Lock
+            isResetting.current = true;
+
+            // 2. Merge with defaults to prevent crashing on missing fields
+            const statsToSave = { ...INITIAL_STATS, ...(data.stats || {}) };
+            
+            // 3. Write directly to LocalStorage
+            localStorage.clear();
+            if(data.stats) localStorage.setItem('pps_stats', JSON.stringify(statsToSave));
+            if(data.habits) localStorage.setItem('pps_habits', JSON.stringify(data.habits || []));
+            if(data.quests) localStorage.setItem('pps_quests', JSON.stringify(data.quests || []));
+            if(data.journalEntries) localStorage.setItem('pps_journal', JSON.stringify(data.journalEntries || []));
+            if(data.historyLogs) localStorage.setItem('pps_logs', JSON.stringify(data.historyLogs || []));
+            if(data.habitIdeas !== undefined) localStorage.setItem('pps_ideas', data.habitIdeas);
+            
+            // 4. Force immediate reload to hydrate state from storage
+            window.location.reload();
+        } catch (e) { 
+            isResetting.current = false; // Unlock if failed
+            console.error("Import Failed", e);
+            showToast("Failed to load save data. Invalid format.", 'error');
+        }
     };
 
     const saveToCloud = async (url: string, token: string) => {
@@ -553,7 +599,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             });
             if (res.ok) {
                 const text = await res.text();
-                return importSaveData(text);
+                importSaveData(text); // Use robust import
+                return true;
             }
             return false;
         } catch { return false; }
@@ -625,41 +672,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (habit.frequency === 'daily') return "Tomorrow";
         if (habit.frequency === 'interval') return `In ${habit.interval - (Math.floor((new Date().getTime() - new Date(habit.startDate).getTime())/(1000*3600*24)) % habit.interval)} days`;
         return "Soon";
-    };
-
-    const exportSaveData = () => JSON.stringify({ stats, habits, quests, journalEntries, historyLogs, habitIdeas, version: 1.6 });
-    const exportHistoryToCSV = () => {
-        const header = "Date,Message,Type,RewardSummary\n";
-        const rows = historyLogs.map(l => `${l.date},"${l.message.replace(/"/g, '""')}",${l.type},"${l.rewardSummary?.replace(/"/g, '""') || ''}"`).join('\n');
-        return header + rows;
-    };
-    
-    const importSaveData = (json: string) => {
-        try {
-            // 1. Engage Safety Lock to prevent auto-save from overwriting imported data before reload
-            isResetting.current = true;
-
-            const data = JSON.parse(json);
-            
-            // 2. Merge imported stats with defaults to ensure new fields (like harvestMapLevel) exist
-            const statsToSave = { ...INITIAL_STATS, ...data.stats };
-            
-            // 3. Write directly to LocalStorage (Source of Truth)
-            if(data.stats) localStorage.setItem('pps_stats', JSON.stringify(statsToSave));
-            if(data.habits) localStorage.setItem('pps_habits', JSON.stringify(data.habits));
-            if(data.quests) localStorage.setItem('pps_quests', JSON.stringify(data.quests));
-            if(data.journalEntries) localStorage.setItem('pps_journal', JSON.stringify(data.journalEntries));
-            if(data.historyLogs) localStorage.setItem('pps_logs', JSON.stringify(data.historyLogs));
-            if(data.habitIdeas) localStorage.setItem('pps_ideas', data.habitIdeas);
-            
-            showToast("Save data loaded successfully. Reloading...", 'success');
-            return true;
-        } catch (e) { 
-            isResetting.current = false; // Unlock if failed
-            console.error("Import Failed", e);
-            showToast("Failed to load save data. Invalid format.", 'error');
-            return false; 
-        }
     };
 
     return (

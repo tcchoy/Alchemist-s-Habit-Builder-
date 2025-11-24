@@ -37,12 +37,12 @@ const BottomNavItem = ({ to, icon, label, active }: { to: string; icon: string; 
 
 const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const { exportSaveData, exportHistoryToCSV, importSaveData, stats, setStats, saveToCloud, loadFromCloud, setLanguage, resetGame } = useGame();
-    const [importStatus, setImportStatus] = useState<string>('');
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [newName, setNewName] = useState(stats.shopName);
     const [cloudUrl, setCloudUrl] = useState('');
     const [cloudToken, setCloudToken] = useState('');
     const [cloudStatus, setCloudStatus] = useState('');
+    const [activeTab, setActiveTab] = useState<'general' | 'data'>('general');
 
     const getTimestampedFilename = (prefix: string, ext: string) => {
         const now = new Date();
@@ -82,19 +82,13 @@ const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        
-        // Reset the input value so the same file can be selected again if needed
-        e.target.value = "";
+        e.target.value = ""; // Reset input
 
         const reader = new FileReader();
         reader.onload = (event) => {
             const text = event.target?.result as string;
-            if (importSaveData(text)) {
-                setImportStatus("Success! Reloading...");
-                setTimeout(() => window.location.reload(), 1000);
-            } else {
-                setImportStatus("Error: Invalid file.");
-            }
+            // importSaveData will force a reload if successful
+            importSaveData(text);
         };
         reader.readAsText(file);
     };
@@ -107,9 +101,9 @@ const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
     const handleCloudLoad = async () => {
         setCloudStatus('Loading...');
+        // loadFromCloud will trigger importSaveData and force reload if successful
         const success = await loadFromCloud(cloudUrl, cloudToken);
-        setCloudStatus(success ? 'Loaded! Reloading...' : 'Failed to Load');
-        if (success) setTimeout(() => window.location.reload(), 1000);
+        if (!success) setCloudStatus('Failed to Load');
     };
 
     const handleReset = () => {
@@ -120,62 +114,74 @@ const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="bg-[#3e3223] p-6 rounded-2xl border border-[#5d4a35] w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl">
-                <div className="flex justify-between items-center mb-6">
+            <div className="bg-[#3e3223] p-0 rounded-2xl border border-[#5d4a35] w-full max-w-md max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+                <div className="flex justify-between items-center p-6 border-b border-[#5d4a35] bg-[#2a2218]">
                     <h2 className="text-xl font-bold text-white font-display">Settings</h2>
                     <button onClick={onClose} className="text-stone-400 hover:text-white"><span className="material-symbols-outlined">close</span></button>
                 </div>
                 
-                <div className="space-y-6">
-                    {/* General */}
-                    <div className="p-4 bg-black/20 rounded-xl border border-white/5 space-y-4">
-                        <div className="flex justify-between items-center">
-                            <span className="text-white text-sm font-bold">Language</span>
-                            <div className="flex gap-2">
-                                <button onClick={() => setLanguage('en')} className={`px-2 py-1 rounded text-xs ${stats.language === 'en' ? 'bg-primary text-black' : 'bg-white/10 text-white'}`}>English</button>
-                                <button onClick={() => setLanguage('zh-TW')} className={`px-2 py-1 rounded text-xs ${stats.language === 'zh-TW' ? 'bg-primary text-black' : 'bg-white/10 text-white'}`}>繁體中文</button>
+                <div className="flex border-b border-[#5d4a35] bg-[#2a2218]">
+                    <button onClick={() => setActiveTab('general')} className={`flex-1 py-3 text-sm font-bold transition-colors ${activeTab === 'general' ? 'text-primary border-b-2 border-primary bg-white/5' : 'text-stone-400 hover:text-white'}`}>General</button>
+                    <button onClick={() => setActiveTab('data')} className={`flex-1 py-3 text-sm font-bold transition-colors ${activeTab === 'data' ? 'text-primary border-b-2 border-primary bg-white/5' : 'text-stone-400 hover:text-white'}`}>Data Management</button>
+                </div>
+
+                <div className="p-6 overflow-y-auto flex-1 space-y-6 bg-[#3e3223]">
+                    {activeTab === 'general' && (
+                        <div className="space-y-6">
+                            <div className="p-4 bg-black/20 rounded-xl border border-white/5 space-y-4">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-white text-sm font-bold">Language</span>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => setLanguage('en')} className={`px-2 py-1 rounded text-xs ${stats.language === 'en' ? 'bg-primary text-black' : 'bg-white/10 text-white'}`}>English</button>
+                                        <button onClick={() => setLanguage('zh-TW')} className={`px-2 py-1 rounded text-xs ${stats.language === 'zh-TW' ? 'bg-primary text-black' : 'bg-white/10 text-white'}`}>繁體中文</button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <span className="text-white text-sm font-bold block mb-1">Shop Name</span>
+                                    <div className="flex gap-2">
+                                        <input value={newName} onChange={e => setNewName(e.target.value)} className="flex-1 bg-black/30 border border-white/10 rounded px-2 py-1 text-white text-sm" />
+                                        <button onClick={() => setStats(prev => ({...prev, shopName: newName}))} className="bg-primary text-black px-3 rounded text-xs font-bold">Save</button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <div>
-                            <span className="text-white text-sm font-bold block mb-1">Shop Name</span>
-                            <div className="flex gap-2">
-                                <input value={newName} onChange={e => setNewName(e.target.value)} className="flex-1 bg-black/30 border border-white/10 rounded px-2 py-1 text-white text-sm" />
-                                <button onClick={() => setStats(prev => ({...prev, shopName: newName}))} className="bg-primary text-black px-3 rounded text-xs font-bold">Save</button>
+                    )}
+
+                    {activeTab === 'data' && (
+                        <div className="space-y-6">
+                            {/* Cloud Sync */}
+                            <div className="p-4 bg-black/20 rounded-xl border border-white/5 space-y-3">
+                                 <h3 className="text-white font-bold flex items-center gap-2 text-sm"><span className="material-symbols-outlined text-orange-400 text-base">cloud_sync</span> Cloud Sync (Cross-Device)</h3>
+                                 <p className="text-[10px] text-stone-400">Sync data between devices using a Cloudflare Worker or compatible endpoint.</p>
+                                 <input placeholder="Worker URL (e.g. https://my-worker.workers.dev)" value={cloudUrl} onChange={e => setCloudUrl(e.target.value)} className="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white text-xs font-mono" spellCheck={false} />
+                                 <input placeholder="API Token" type="password" value={cloudToken} onChange={e => setCloudToken(e.target.value)} className="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white text-xs font-mono" />
+                                 <div className="flex gap-2">
+                                     <button onClick={handleCloudSave} className="flex-1 bg-white/10 hover:bg-white/20 text-white py-2 rounded text-xs font-bold">Save to Cloud</button>
+                                     <button onClick={handleCloudLoad} className="flex-1 bg-white/10 hover:bg-white/20 text-white py-2 rounded text-xs font-bold">Load from Cloud</button>
+                                 </div>
+                                 {cloudStatus && <p className="text-xs text-center text-primary">{cloudStatus}</p>}
+                            </div>
+
+                            {/* Local Backup */}
+                            <div className="p-4 bg-black/20 rounded-xl border border-white/5 space-y-3">
+                                <h3 className="text-white font-bold text-sm flex items-center gap-2"><span className="material-symbols-outlined text-base text-blue-400">save</span> Local Backup</h3>
+                                <div className="flex gap-2">
+                                    <button onClick={handleDownloadJSON} className="flex-1 bg-primary/20 text-primary border border-primary/50 py-2 rounded text-xs font-bold">Export JSON</button>
+                                    <button onClick={handleDownloadCSV} className="flex-1 bg-green-500/20 text-green-400 border border-green-500/50 py-2 rounded text-xs font-bold">Export Records (CSV)</button>
+                                </div>
+                                <button onClick={() => fileInputRef.current?.click()} className="w-full bg-white/10 text-white py-2 rounded text-xs font-bold border border-white/10 hover:bg-white/20">Import Backup (JSON)</button>
+                                <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleFileUpload} />
+                            </div>
+
+                            {/* Reset */}
+                            <div className="p-4 bg-red-900/10 rounded-xl border border-red-900/30">
+                                <button onClick={handleReset} className="w-full bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/50 py-2 rounded text-xs font-bold flex items-center justify-center gap-2">
+                                    <span className="material-symbols-outlined text-sm">delete_forever</span>
+                                    Reset Game Data
+                                </button>
                             </div>
                         </div>
-                    </div>
-
-                    {/* Cloudflare Sync */}
-                    <div className="p-4 bg-black/20 rounded-xl border border-white/5 space-y-3">
-                         <h3 className="text-white font-bold flex items-center gap-2"><span className="material-symbols-outlined text-orange-400">cloud</span> Cloud Sync (Cross-Device)</h3>
-                         <p className="text-[10px] text-stone-400">Sync data between devices using a compatible server endpoint.</p>
-                         <input placeholder="Worker URL" value={cloudUrl} onChange={e => setCloudUrl(e.target.value)} className="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white text-xs" />
-                         <input placeholder="API Token" type="password" value={cloudToken} onChange={e => setCloudToken(e.target.value)} className="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white text-xs" />
-                         <div className="flex gap-2">
-                             <button onClick={handleCloudSave} className="flex-1 bg-white/10 hover:bg-white/20 text-white py-2 rounded text-xs font-bold">Save to Cloud</button>
-                             <button onClick={handleCloudLoad} className="flex-1 bg-white/10 hover:bg-white/20 text-white py-2 rounded text-xs font-bold">Load from Cloud</button>
-                         </div>
-                         {cloudStatus && <p className="text-xs text-center text-primary">{cloudStatus}</p>}
-                    </div>
-
-                    {/* Local File */}
-                    <div className="p-4 bg-black/20 rounded-xl border border-white/5 space-y-3">
-                        <h3 className="text-white font-bold">Local Backup</h3>
-                        <div className="flex gap-2">
-                            <button onClick={handleDownloadJSON} className="flex-1 bg-primary/20 text-primary border border-primary/50 py-2 rounded text-xs font-bold">JSON Export</button>
-                            <button onClick={handleDownloadCSV} className="flex-1 bg-green-500/20 text-green-400 border border-green-500/50 py-2 rounded text-xs font-bold">CSV History</button>
-                        </div>
-                        <button onClick={() => fileInputRef.current?.click()} className="w-full bg-white/10 text-white py-2 rounded text-xs font-bold">Import JSON</button>
-                        <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleFileUpload} />
-                        {importStatus && <p className="text-xs text-center text-green-400">{importStatus}</p>}
-                    </div>
-
-                    {/* Reset */}
-                    <div className="p-4 bg-red-900/10 rounded-xl border border-red-900/30">
-                        <button onClick={handleReset} className="w-full bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/50 py-2 rounded text-xs font-bold">
-                            Reset Game Data
-                        </button>
-                    </div>
+                    )}
                 </div>
             </div>
         </div>

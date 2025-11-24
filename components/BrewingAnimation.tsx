@@ -15,14 +15,14 @@ const BrewingAnimation: React.FC<BrewingAnimationProps> = ({ onComplete }) => {
     const [step, setStep] = useState(0);
 
     useEffect(() => {
-        // Timeline: Total 5 Seconds
-        // 0s - 1.5s: Ingredient Adding (Image 1)
-        // 1.5s - 3.5s: Stirring (Image 2)
-        // 3.5s - 5.0s: Success (Image 3)
+        // Timeline: Total 3 Seconds
+        // 0s - 1.0s: Ingredient Adding
+        // 1.0s - 2.0s: Stirring
+        // 2.0s - 3.0s: Success
         
-        const t1 = setTimeout(() => setStep(1), 1500);  // Switch to Stirring
-        const t2 = setTimeout(() => setStep(2), 3500);  // Switch to Success
-        const t3 = setTimeout(onComplete, 5000);      // End
+        const t1 = setTimeout(() => setStep(1), 1000);  
+        const t2 = setTimeout(() => setStep(2), 2000);  
+        const t3 = setTimeout(onComplete, 3000);
 
         return () => {
             clearTimeout(t1); clearTimeout(t2); clearTimeout(t3);
@@ -36,8 +36,11 @@ const BrewingAnimation: React.FC<BrewingAnimationProps> = ({ onComplete }) => {
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className="relative w-[90%] max-w-md aspect-[4/3] bg-[#3e3223] rounded-xl border-4 border-[#8b7355] shadow-2xl overflow-hidden flex flex-col">
+        <div 
+            onClick={onComplete}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300 cursor-pointer"
+        >
+            <div className="relative w-[90%] max-w-md aspect-[4/3] bg-[#3e3223] rounded-xl border-4 border-[#8b7355] shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
                 
                 {/* RPG Decor Frame Inner */}
                 <div className="absolute inset-1 border border-[#5d4a35] rounded-lg pointer-events-none z-20"></div>
@@ -46,14 +49,19 @@ const BrewingAnimation: React.FC<BrewingAnimationProps> = ({ onComplete }) => {
                 <div className="absolute bottom-2 left-2 size-3 bg-[#fcd34d] rounded-full shadow-inner z-20 border border-[#b45309]"></div>
                 <div className="absolute bottom-2 right-2 size-3 bg-[#fcd34d] rounded-full shadow-inner z-20 border border-[#b45309]"></div>
 
+                {/* Skip Tooltip */}
+                <div className="absolute top-4 right-6 z-30 bg-black/50 text-white text-[10px] px-2 py-1 rounded border border-white/20 backdrop-blur-md pointer-events-none">
+                    Click anywhere to skip
+                </div>
+
                 {/* Image Display */}
-                <div className="flex-1 relative bg-black">
+                <div className="flex-1 relative bg-black" onClick={onComplete}>
                     {IMAGES.map((src, index) => (
                         <img 
                             key={index}
                             src={src} 
                             alt={`Step ${index}`}
-                            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${step === index ? 'opacity-100' : 'opacity-0'}`}
+                            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${step === index ? 'opacity-100' : 'opacity-0'}`}
                         />
                     ))}
                     
