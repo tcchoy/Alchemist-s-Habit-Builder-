@@ -81,7 +81,7 @@ const Dashboard: React.FC = () => {
           <div className="relative w-full aspect-[21/9] md:h-[500px] overflow-hidden rounded-2xl bg-black">
             <div 
                 className="absolute inset-0 bg-cover bg-center transition-transform duration-[30s] hover:scale-105"
-                style={{ backgroundImage: 'url("https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-/refs/heads/main/public/assets/shop-background.png")' }}
+                style={{ backgroundImage: 'url("https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/shop-background.png")' }}
             >
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
             </div>

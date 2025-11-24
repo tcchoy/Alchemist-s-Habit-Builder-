@@ -72,11 +72,11 @@ export const LEVEL_TITLES = [
 
 // JRPG Style Maps
 export const MAPS = [
-    { level: 1, name: "Whisperwind Woodland", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-/refs/heads/main/public/assets/woodlane-min.jpg", rewardRange: "10-50g" }, // Forest
-    { level: 2, name: "Gloomrot Bog", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-/refs/heads/main/public/assets/bog-min.jpg", rewardRange: "20-100g" }, // Misty/Swampy
-    { level: 3, name: "Leviathan Sea", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-/refs/heads/main/public/assets/Sea-min.jpg", rewardRange: "50-150g" }, // Ocean
-    { level: 4, name: "Crimson Volcano", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-/refs/heads/main/public/assets/volcano-min.jpg", rewardRange: "100-250g" }, // Lava/Volcano (Abstract)
-    { level: 5, name: "Voidlight Caverns", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-/refs/heads/main/public/assets/cave-min.jpg", rewardRange: "200-500g" }, // Cave
+    { level: 1, name: "Whisperwind Woodland", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Whisperwind%20Woodland.png", rewardRange: "10-50g" }, // Forest
+    { level: 2, name: "Gloomrot Bog", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Gloomrot%20Bog.png", rewardRange: "20-100g" }, // Misty/Swampy
+    { level: 3, name: "Leviathan Sea", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Leviathan%20Sea.png", rewardRange: "50-150g" }, // Ocean
+    { level: 4, name: "Crimson Volcano", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Crimson%20Volcano.png", rewardRange: "100-250g" }, // Lava/Volcano (Abstract)
+    { level: 5, name: "Voidlight Caverns", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Voidlight%20Caverns.png", rewardRange: "200-500g" }, // Cave
     ];
 
 const DICTIONARY: Record<Language, Record<string, string>> = {
