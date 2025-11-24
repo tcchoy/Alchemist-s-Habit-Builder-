@@ -15,11 +15,11 @@
             theme: {
                 extend: {
                     colors: {
-                        "primary": "#a78bfa", // Violet-400 (Mystic Magic)
-                        "secondary": "#fbbf24", // Amber-400 (Gold)
-                        "background-light": "#f3f4f6",
-                        "background-dark": "#13111c", // Deep Dark Purple-Gray
-                        "surface-dark": "#1e1b2e", // Lighter Purple-Gray
+                        "primary": "#fbbf24", // Amber-400 (Warm Magic/Gold)
+                        "secondary": "#fcd34d", // Amber-300
+                        "background-light": "#fff7ed", // Orange-50 (Cream)
+                        "background-dark": "#292524", // Stone-800 (Deep Warm Brown)
+                        "surface-dark": "#44403c", // Stone-700 (Wood/Stone)
                         "surface-light": "#ffffff",
                     },
                     fontFamily: {
@@ -54,14 +54,14 @@
             height: 8px;
         }
         ::-webkit-scrollbar-track {
-            background: #13111c; 
+            background: #292524; 
         }
         ::-webkit-scrollbar-thumb {
-            background: #2e2a45; 
+            background: #57534e; 
             border-radius: 4px;
         }
         ::-webkit-scrollbar-thumb:hover {
-            background: #a78bfa; 
+            background: #fbbf24; 
         }
     </style>
   <script type="importmap">
@@ -75,7 +75,7 @@
 }
 </script>
 </head>
-  <body class="bg-background-light dark:bg-background-dark text-gray-900 dark:text-white font-display antialiased selection:bg-primary selection:text-background-dark">
+  <body class="bg-background-light dark:bg-background-dark text-gray-900 dark:text-[#f5f5f4] font-display antialiased selection:bg-primary selection:text-background-dark">
     <div id="root"></div>
   </body>
 </html>

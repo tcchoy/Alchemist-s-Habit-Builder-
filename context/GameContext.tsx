@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { UserStats, Habit, Quest, JournalEntry, ShopItem, HistoryLog, FrequencyType, PotionCategory, Language, CategoryMeta } from '../types';
+import { UserStats, Habit, Quest, JournalEntry, ShopItem, HistoryLog, FrequencyType, PotionCategory, Language, CategoryMeta, Toast } from '../types';
 
 interface GameContextType {
     stats: UserStats;
@@ -18,6 +18,7 @@ interface GameContextType {
     updateHabit: (habit: Habit) => void;
     deleteHabit: (id: string) => void;
     addQuest: (quest: Quest) => void;
+    updateQuest: (quest: Quest) => void;
     deleteQuest: (id: string) => void;
     toggleHabit: (id: string) => void;
     completeQuest: (id: string) => void;
@@ -36,6 +37,10 @@ interface GameContextType {
     loadFromCloud: (url: string, token: string) => Promise<boolean>;
     t: (key: string) => string;
     setLanguage: (lang: Language) => void;
+    showToast: (message: string, type: Toast['type']) => void;
+    toasts: Toast[];
+    isBrewing: boolean;
+    finishBrewing: () => void;
     LEVEL_TITLES: {level: number, title: string}[];
     MAPS: { level: number, name: string, image: string, rewardRange: string }[];
 }
@@ -65,14 +70,14 @@ export const LEVEL_TITLES = [
     { level: 20, title: "Arcane Legend" },
 ];
 
-// Updated to use local assets in public/assets/ folder
+// JRPG Style Maps
 export const MAPS = [
-    { level: 1, name: "Whisperwind Woodland", image: "https://drive.google.com/file/d/1VEjwZ198Yx5LrQmG6tUlZTzI6AWr5XUB/preview", rewardRange: "10-50g" },
-    { level: 2, name: "Gloomrot Bog", image: "/assets/Gloomrot Bog.png", rewardRange: "20-100g" },
-    { level: 3, name: "Leviathan Sea", image: "/assets/Leviathan Sea.png", rewardRange: "50-150g" },
-    { level: 4, name: "Crimson Volcano", image: "/assets/Crimson Volcano.png", rewardRange: "100-250g" },
-    { level: 5, name: "Voidlight Caverns", image: "/assets/Voidlight Caverns.png", rewardRange: "200-500g" },
-];
+    { level: 1, name: "Whisperwind Woodland", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-/refs/heads/main/public/assets/woodlane-min.jpg", rewardRange: "10-50g" }, // Forest
+    { level: 2, name: "Gloomrot Bog", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-/refs/heads/main/public/assets/bog-min.jpg", rewardRange: "20-100g" }, // Misty/Swampy
+    { level: 3, name: "Leviathan Sea", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-/refs/heads/main/public/assets/Sea-min.jpg", rewardRange: "50-150g" }, // Ocean
+    { level: 4, name: "Crimson Volcano", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-/refs/heads/main/public/assets/volcano-min.jpg", rewardRange: "100-250g" }, // Lava/Volcano (Abstract)
+    { level: 5, name: "Voidlight Caverns", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-/refs/heads/main/public/assets/cave-min.jpg", rewardRange: "200-500g" }, // Cave
+    ];
 
 const DICTIONARY: Record<Language, Record<string, string>> = {
     'en': {
@@ -113,7 +118,7 @@ const INITIAL_STATS: UserStats = {
     shopName: "The Rusty Cauldron",
     startDate: new Date().toISOString().split('T')[0],
     title: "Apprentice Brewer",
-    avatarUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuAGKEfRIsnxljeWeqdQC3OoOKKBiZQ30GglKUt6bqH4iiKRqOnmzR2OAAkrmkw-r6nQ91d9WTy8j8iLAeR5wCsjMvkOiFos1AzR7npRzc_bjUVSUmM-BmlAS_oqlzrMr9s79WFza09QMoTge4WigM8G1eNSM3A1XmTLjhYAIFb2qa2J-AVWCYLAQaJrGUPEwo3JRUQwyWNYWuwihv7b2VXpuJLHGIxgPYeVegW5Gjb-HsawEfZ588SShTP0SA1VpRyq1ipGQMChGIU",
+    avatarUrl: "https://api.dicebear.com/9.x/adventurer/svg?seed=Alchemist",
     habitSlots: 5,
     loginStreak: 1,
     lastLoginDate: new Date().toISOString().split('T')[0],
@@ -155,10 +160,21 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
     const [historyLogs, setHistoryLogs] = useState<HistoryLog[]>([]);
     const [habitIdeas, setHabitIdeas] = useState<string>('');
+    const [toasts, setToasts] = useState<Toast[]>([]);
     const [loaded, setLoaded] = useState(false);
+    
+    // Brewing Animation State
+    const [isBrewing, setIsBrewing] = useState(false);
+    const [pendingHabitId, setPendingHabitId] = useState<string | null>(null);
 
     const t = (key: string) => DICTIONARY[stats.language]?.[key] || key;
     const setLanguage = (lang: Language) => setStats(prev => ({ ...prev, language: lang }));
+
+    const showToast = (message: string, type: Toast['type']) => {
+        const id = Date.now().toString();
+        setToasts(prev => [...prev, { id, message, type }]);
+        setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000);
+    };
 
     const logHistory = (message: string, type: HistoryLog['type'], rewardSummary?: string) => {
         const newLog: HistoryLog = {
@@ -190,6 +206,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             const savedQuests = localStorage.getItem('pps_quests');
             if (savedQuests) setQuests(JSON.parse(savedQuests));
             
+            // Merge System Quests if new ones were added
             const savedQuestsList = savedQuests ? JSON.parse(savedQuests) as Quest[] : SEED_QUESTS;
             SEED_QUESTS.forEach(sq => {
                 if (!savedQuestsList.some(q => q.id === sq.id)) {
@@ -224,7 +241,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setQuests(prev => prev.map(q => {
             if (q.status !== 'active' || q.type !== 'System' || !q.autoCheckKey) return q;
 
-            // Handle Daily Logic
             if (q.autoCheckKey === 'daily_habits' && triggerType === 'daily_habits') {
                 const completedToday = value !== undefined ? value : habits.filter(h => h.status === 'done').length;
                 if (completedToday >= 3) return { ...q, status: 'completed', progress: 3 };
@@ -241,7 +257,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 return { ...q, progress: categoriesDone.size };
             }
 
-            // Handle Simple Triggers
             if (q.autoCheckKey === triggerType) {
                  if (value !== undefined) {
                      if (value >= q.maxProgress) return { ...q, status: 'completed', progress: q.maxProgress };
@@ -287,18 +302,34 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const addHabit = (habit: Habit) => {
         setHabits(prev => [...prev, habit]);
         checkSystemQuests('create_habit');
+        showToast(`Recipe created: ${habit.title}`, 'success');
     };
-    const updateHabit = (h: Habit) => setHabits(prev => prev.map(old => old.id === h.id ? h : old));
-    const deleteHabit = (id: string) => setHabits(prev => prev.filter(h => h.id !== id));
+    const updateHabit = (h: Habit) => {
+        setHabits(prev => prev.map(old => old.id === h.id ? h : old));
+        showToast(`Recipe updated: ${h.title}`, 'success');
+    };
+    const deleteHabit = (id: string) => {
+        setHabits(prev => prev.filter(h => h.id !== id));
+        showToast(`Recipe discarded`, 'info');
+    };
     
     const addQuest = (quest: Quest) => {
         setQuests(prev => [...prev, quest]);
         checkSystemQuests('create_quest');
+        showToast(`New notice posted`, 'success');
     };
-    const deleteQuest = (id: string) => setQuests(prev => prev.filter(q => q.id !== id));
+    const updateQuest = (quest: Quest) => {
+        setQuests(prev => prev.map(q => q.id === quest.id ? quest : q));
+        showToast(`Notice updated`, 'success');
+    };
+    const deleteQuest = (id: string) => {
+        setQuests(prev => prev.filter(q => q.id !== id));
+        showToast(`Notice removed`, 'info');
+    };
     const completeQuest = (id: string) => {
         setQuests(prev => prev.map(q => q.id === id ? { ...q, status: 'completed', progress: q.maxProgress } : q));
         checkSystemQuests('complete_quest');
+        showToast(`Quest completed!`, 'success');
     };
     const claimQuestReward = (id: string) => {
         setQuests(prev => prev.map(q => {
@@ -307,51 +338,79 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 addGold(q.rewardGold);
                 addXp(q.rewardXp);
                 logHistory(`${q.title}`, 'quest', `+${q.rewardGold}g, +${q.rewardGems}gems, +${q.rewardXp}XP`);
+                showToast(`Rewards claimed: ${q.rewardGold}g, ${q.rewardGems}gems`, 'success');
                 return { ...q, status: 'claimed' };
             }
             return q;
         }));
     };
 
-    const toggleHabit = (id: string) => {
+    const processHabitCompletion = (id: string) => {
         setHabits(prev => {
             const habit = prev.find(h => h.id === id);
             if (!habit) return prev;
             
-            const isDone = habit.status === 'done';
+            let mult = stats.rewardMultiplier;
+            if (stats.categoryMultipliers[habit.category]) mult *= stats.categoryMultipliers[habit.category];
+            const gold = Math.floor(habit.rewardGold * mult);
+            const xp = Math.floor(habit.rewardXp * mult);
             
-            if (!isDone) {
-                // Calculate rewards
-                let mult = stats.rewardMultiplier;
-                if (stats.categoryMultipliers[habit.category]) mult *= stats.categoryMultipliers[habit.category];
-                const gold = Math.floor(habit.rewardGold * mult);
-                const xp = Math.floor(habit.rewardXp * mult);
-                
-                addGold(gold);
-                addXp(xp);
-                logHistory(`${habit.title}|${habit.category}`, 'habit', `+${gold}g, +${xp}XP`);
-                
-                // IMPORTANT: Use the new count for system quests (current + 1)
-                const currentDoneCount = prev.filter(h => h.status === 'done').length;
-                setTimeout(() => {
-                    checkSystemQuests('daily_habits', currentDoneCount + 1);
-                }, 0);
+            addGold(gold);
+            addXp(xp);
+            logHistory(`${habit.title}|${habit.category}`, 'habit', `+${gold}g, +${xp}XP`);
+            
+            // Calculate completed count *after* this one is marked done
+            const currentDoneCount = prev.filter(h => h.status === 'done').length;
+            setTimeout(() => {
+                checkSystemQuests('daily_habits', currentDoneCount + 1);
+            }, 0);
+            
+            showToast(`Brewed ${habit.title}! +${gold}g`, 'success');
+            return prev.map(h => h.id === id ? { ...h, status: 'done', streak: h.streak + 1, completions: (h.completions||0)+1, lastCompletedDate: new Date().toISOString().split('T')[0] } : h);
+        });
+    };
 
-                return prev.map(h => h.id === id ? { ...h, status: 'done', streak: h.streak + 1, completions: (h.completions||0)+1, lastCompletedDate: new Date().toISOString().split('T')[0] } : h);
-            } else {
+    const toggleHabit = (id: string) => {
+        const habit = habits.find(h => h.id === id);
+        if (!habit) return;
+        
+        const isDone = habit.status === 'done';
+
+        if (!isDone) {
+            // Start Brewing Animation
+            setPendingHabitId(id);
+            setIsBrewing(true);
+            // Completion Logic happens in finishBrewing()
+        } else {
+            // Undo (no animation needed for undo)
+             setHabits(prev => {
                  const currentDoneCount = prev.filter(h => h.status === 'done').length;
                  setTimeout(() => {
                     checkSystemQuests('daily_habits', Math.max(0, currentDoneCount - 1));
                 }, 0);
 
                  return prev.map(h => h.id === id ? { ...h, status: 'todo', streak: Math.max(0, h.streak - 1), completions: Math.max(0, (h.completions||1)-1) } : h);
-            }
-        });
+            });
+        }
+    };
+
+    const finishBrewing = () => {
+        setIsBrewing(false);
+        if (pendingHabitId) {
+            processHabitCompletion(pendingHabitId);
+            setPendingHabitId(null);
+        }
     };
 
     const buyShopItem = (item: ShopItem, customParam?: string, metaParam?: any): boolean => {
-        if (item.minLevel && stats.level < item.minLevel) return false;
-        if (stats.gold < item.costGold || stats.gems < item.costGems) return false;
+        if (item.minLevel && stats.level < item.minLevel) {
+            showToast(`Level ${item.minLevel} required!`, 'error');
+            return false;
+        }
+        if (stats.gold < item.costGold || stats.gems < item.costGems) {
+            showToast("Insufficient funds", 'error');
+            return false;
+        }
 
         setStats(prev => {
             const newState = { ...prev, gold: prev.gold - item.costGold, gems: prev.gems - item.costGems };
@@ -372,6 +431,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
         logHistory(`Purchased: ${item.name}`, 'shop', `-${item.costGold}g, -${item.costGems}gems`);
         checkSystemQuests('shop_purchase');
+        showToast(`Purchased ${item.name}`, 'success');
         return true;
     };
 
@@ -406,6 +466,12 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     const resetGame = () => {
+        localStorage.removeItem('pps_stats');
+        localStorage.removeItem('pps_habits');
+        localStorage.removeItem('pps_quests');
+        localStorage.removeItem('pps_journal');
+        localStorage.removeItem('pps_logs');
+        localStorage.removeItem('pps_ideas');
         localStorage.clear();
         window.location.reload();
     };
@@ -413,6 +479,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const addJournalEntry = (entry: JournalEntry) => {
         setJournalEntries(prev => [entry, ...prev]);
         checkSystemQuests('journal_entry');
+        showToast("Journal entry inscribed", 'success');
     };
 
     const saveToCloud = async (url: string, token: string) => {
@@ -443,8 +510,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const isHabitDueToday = (habit: Habit): boolean => {
         if (habit.status === 'done') return false; 
         const today = new Date();
-        const currentDay = today.getDay(); // 0-6
-        const currentDate = today.getDate(); // 1-31
+        const currentDay = today.getDay(); 
+        const currentDate = today.getDate(); 
         
         const startDate = new Date(habit.startDate);
         today.setHours(0,0,0,0);
@@ -495,7 +562,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
              return months % habit.interval === 0;
         }
         
-        // Legacy fallbacks
         if (habit.frequency === 'specific_days' && habit.days) return habit.days.includes(currentDay);
         if (habit.frequency === 'repeating' && habit.repeatInterval) return diffDays % habit.repeatInterval === 0;
 
@@ -509,8 +575,12 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return "Soon";
     };
 
-    const exportSaveData = () => JSON.stringify({ stats, habits, quests, journalEntries, historyLogs, habitIdeas, version: 1.5 });
-    const exportHistoryToCSV = () => historyLogs.map(l => `${l.date},"${l.message}",${l.type},"${l.rewardSummary}"`).join('\n');
+    const exportSaveData = () => JSON.stringify({ stats, habits, quests, journalEntries, historyLogs, habitIdeas, version: 1.6 });
+    const exportHistoryToCSV = () => {
+        const header = "Date,Message,Type,RewardSummary\n";
+        const rows = historyLogs.map(l => `${l.date},"${l.message.replace(/"/g, '""')}",${l.type},"${l.rewardSummary?.replace(/"/g, '""') || ''}"`).join('\n');
+        return header + rows;
+    };
     const importSaveData = (json: string) => {
         try {
             const data = JSON.parse(json);
@@ -520,17 +590,22 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             if(data.journalEntries) setJournalEntries(data.journalEntries);
             if(data.historyLogs) setHistoryLogs(data.historyLogs);
             if(data.habitIdeas) setHabitIdeas(data.habitIdeas);
+            showToast("Save data loaded successfully", 'success');
             return true;
-        } catch { return false; }
+        } catch { 
+            showToast("Failed to load save data", 'error');
+            return false; 
+        }
     };
 
     return (
         <GameContext.Provider value={{
             stats, setStats, habits, quests, journalEntries, historyLogs, habitIdeas, setHabitIdeas,
-            addGold, addGems, addXp, addHabit, updateHabit, deleteHabit, addQuest, deleteQuest,
+            addGold, addGems, addXp, addHabit, updateHabit, deleteHabit, addQuest, updateQuest, deleteQuest,
             toggleHabit, completeQuest, claimQuestReward, buyShopItem, addJournalEntry, resetDaily, resetGame,
             claimHarvestReward, isHabitDueToday, getNextDueDate, exportSaveData, exportHistoryToCSV, importSaveData,
-            saveToCloud, loadFromCloud, t, setLanguage, LEVEL_TITLES, MAPS
+            saveToCloud, loadFromCloud, t, setLanguage, showToast, toasts, 
+            isBrewing, finishBrewing, LEVEL_TITLES, MAPS
         }}>
             {children}
         </GameContext.Provider>

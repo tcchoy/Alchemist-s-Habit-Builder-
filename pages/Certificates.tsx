@@ -191,7 +191,7 @@ const Certificates: React.FC = () => {
         <div className="max-w-6xl mx-auto animate-in fade-in duration-500">
             <header className="mb-8">
                 <h1 className="text-4xl font-bold text-white font-display">Certificates of Mastery</h1>
-                <p className="text-gray-400">Track your long-term achievements and milestones.</p>
+                <p className="text-stone-400">Track your long-term achievements and milestones.</p>
             </header>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -221,22 +221,22 @@ const Certificates: React.FC = () => {
                     const percent = isMaster ? 100 : Math.min(100, Math.max(0, (currentInRange / range) * 100));
 
                     return (
-                        <div key={m.id} className="bg-surface-dark border border-white/10 rounded-xl p-6 relative overflow-hidden group hover:border-primary/30 transition-all">
+                        <div key={m.id} className="bg-surface-dark border border-[#5d4a35] rounded-xl p-6 relative overflow-hidden group hover:border-primary/30 transition-all">
                              <div className="absolute top-0 right-0 p-4 opacity-5">
                                  <span className="material-symbols-outlined text-8xl">military_tech</span>
                              </div>
                              
                              <div className="relative z-10">
                                  <h3 className="text-white font-bold text-lg mb-1">{m.title}</h3>
-                                 <p className="text-gray-400 text-xs mb-4 min-h-[32px]">{m.description}</p>
+                                 <p className="text-stone-400 text-xs mb-4 min-h-[32px]">{m.description}</p>
                                  
                                  <div className="flex items-center justify-between mb-2">
                                      <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${
-                                         currentLevelName === 'Master' ? 'bg-purple-500/20 text-purple-300' :
+                                         currentLevelName === 'Master' ? 'bg-pink-500/20 text-pink-300' :
                                          currentLevelName === 'Expert' ? 'bg-yellow-500/20 text-yellow-300' :
                                          currentLevelName === 'Specialist' ? 'bg-blue-500/20 text-blue-300' :
                                          currentLevelName === 'Novice' ? 'bg-green-500/20 text-green-300' :
-                                         'bg-gray-700 text-gray-400'
+                                         'bg-stone-700 text-stone-400'
                                      }`}>{currentLevelName}</span>
                                      <span className="text-xs text-white font-mono">{m.currentValue} / {isMaster ? 'MAX' : nextThreshold}</span>
                                  </div>

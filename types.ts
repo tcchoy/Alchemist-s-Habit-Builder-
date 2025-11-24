@@ -126,3 +126,9 @@ export interface Milestone {
     levels: { threshold: number; name: string }[];
     currentValue: number;
 }
+
+export interface Toast {
+    id: string;
+    message: string;
+    type: 'success' | 'error' | 'info';
+}

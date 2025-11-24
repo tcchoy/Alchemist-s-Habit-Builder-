@@ -2,6 +2,8 @@
 import React, { useState, useRef } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
+import { Toast } from '../types';
+import BrewingAnimation from './BrewingAnimation';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -13,11 +15,23 @@ const SidebarItem = ({ to, icon, label, active }: { to: string; icon: string; la
     className={`flex items-center gap-3 rounded-full px-4 py-3 transition-all duration-200 group ${
       active 
         ? 'bg-primary/20 text-primary' 
-        : 'text-gray-400 hover:bg-white/5 hover:text-white'
+        : 'text-stone-400 hover:bg-white/5 hover:text-stone-100'
     }`}
   >
     <span className={`material-symbols-outlined ${active ? 'fill' : ''}`} style={{fontVariationSettings: active ? "'FILL' 1" : "'FILL' 0"}}>{icon}</span>
     <p className="font-display text-sm font-medium leading-normal">{label}</p>
+  </Link>
+);
+
+const BottomNavItem = ({ to, icon, label, active }: { to: string; icon: string; label: string; active: boolean }) => (
+  <Link
+    to={to}
+    className={`flex flex-col items-center justify-center gap-1 p-2 transition-all duration-200 ${
+      active ? 'text-primary' : 'text-stone-400 hover:text-stone-100'
+    }`}
+  >
+    <span className={`material-symbols-outlined text-2xl ${active ? 'fill' : ''}`} style={{fontVariationSettings: active ? "'FILL' 1" : "'FILL' 0"}}>{icon}</span>
+    <span className="text-[10px] font-medium">{label}</span>
   </Link>
 );
 
@@ -89,10 +103,10 @@ const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="bg-surface-dark p-6 rounded-2xl border border-white/10 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="bg-[#3e3223] p-6 rounded-2xl border border-[#5d4a35] w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl">
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-xl font-bold text-white font-display">Settings</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-white"><span className="material-symbols-outlined">close</span></button>
+                    <button onClick={onClose} className="text-stone-400 hover:text-white"><span className="material-symbols-outlined">close</span></button>
                 </div>
                 
                 <div className="space-y-6">
@@ -150,16 +164,37 @@ const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     );
 };
 
+const ToastContainer: React.FC = () => {
+    const { toasts } = useGame();
+    return (
+        <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
+            {toasts.map(t => (
+                <div key={t.id} className={`pointer-events-auto px-4 py-3 rounded-lg shadow-lg border backdrop-blur-md text-sm font-bold animate-in slide-in-from-right fade-in duration-300 ${
+                    t.type === 'success' ? 'bg-green-500/20 border-green-500/50 text-green-200' :
+                    t.type === 'error' ? 'bg-red-500/20 border-red-500/50 text-red-200' :
+                    'bg-blue-500/20 border-blue-500/50 text-blue-200'
+                }`}>
+                    {t.message}
+                </div>
+            ))}
+        </div>
+    );
+};
+
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { pathname } = useLocation();
-  const { stats, t } = useGame();
+  const { stats, t, isBrewing, finishBrewing } = useGame();
   const [showSettings, setShowSettings] = useState(false);
+  const [showMobileDrawer, setShowMobileDrawer] = useState(false);
 
   return (
     <div className="flex h-screen w-full bg-background-light dark:bg-background-dark overflow-hidden transition-colors duration-500">
+      <ToastContainer />
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {isBrewing && <BrewingAnimation onComplete={finishBrewing} />}
       
-      <aside className="flex w-64 shrink-0 flex-col gap-8 border-r border-white/5 bg-surface-dark p-4 z-20 hidden md:flex">
+      {/* DESKTOP SIDEBAR */}
+      <aside className="flex w-64 shrink-0 flex-col gap-8 border-r border-[#5d4a35]/50 bg-surface-dark p-4 z-20 hidden md:flex">
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-3 px-2">
             <div className="aspect-square size-12 rounded-full bg-cover bg-center border-2 border-primary/30" style={{ backgroundImage: `url("${stats.avatarUrl}")` }}></div>
@@ -186,16 +221,55 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
       </aside>
 
-      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-surface-dark border-b border-white/10 flex items-center justify-between px-4 z-30">
-         <span className="font-bold text-white">{stats.shopName}</span>
-         <button onClick={() => setShowSettings(true)} className="text-white"><span className="material-symbols-outlined">settings</span></button>
+      {/* MOBILE DRAWER (FULL MENU) */}
+      {showMobileDrawer && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm md:hidden" onClick={() => setShowMobileDrawer(false)}>
+              <div className="absolute left-0 top-0 bottom-0 w-64 bg-surface-dark p-4 shadow-xl border-r border-[#5d4a35]" onClick={e => e.stopPropagation()}>
+                 <div className="flex items-center justify-between mb-6 px-2">
+                     <h2 className="text-xl font-bold text-white font-display">Menu</h2>
+                     <button onClick={() => setShowMobileDrawer(false)}><span className="material-symbols-outlined text-stone-400">close</span></button>
+                 </div>
+                 <nav className="flex flex-col gap-1">
+                    <SidebarItem to="/" icon="home" label={t('dashboard')} active={pathname === '/'} />
+                    <SidebarItem to="/habits" icon="science" label={t('brewing')} active={pathname === '/habits'} />
+                    <SidebarItem to="/quests" icon="assignment_turned_in" label={t('quests')} active={pathname === '/quests'} />
+                    <SidebarItem to="/harvest" icon="forest" label={t('harvest')} active={pathname === '/harvest'} />
+                    <SidebarItem to="/shop" icon="storefront" label={t('market')} active={pathname === '/shop'} />
+                    <SidebarItem to="/journal" icon="menu_book" label={t('grimoire')} active={pathname === '/journal'} />
+                    <SidebarItem to="/certificates" icon="workspace_premium" label={t('certificates')} active={pathname === '/certificates'} />
+                    <SidebarItem to="/calendar" icon="calendar_month" label={t('review')} active={pathname === '/calendar'} />
+                 </nav>
+                 <div className="mt-6 pt-6 border-t border-white/5">
+                      <button onClick={() => {setShowSettings(true); setShowMobileDrawer(false);}} className="flex w-full items-center gap-3 rounded-full px-4 py-3 text-stone-400 hover:bg-white/5 hover:text-white">
+                          <span className="material-symbols-outlined">settings</span>
+                          <span className="font-display text-sm font-medium">{t('settings')}</span>
+                      </button>
+                 </div>
+              </div>
+          </div>
+      )}
+
+      {/* MOBILE TOP BAR */}
+      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-surface-dark border-b border-[#5d4a35]/50 flex items-center justify-between px-4 z-30">
+         <button onClick={() => setShowMobileDrawer(true)} className="text-white"><span className="material-symbols-outlined">menu</span></button>
+         <span className="font-bold text-white truncate max-w-[200px]">{stats.shopName}</span>
+         <div className="aspect-square size-8 rounded-full bg-cover bg-center border border-primary/30" style={{ backgroundImage: `url("${stats.avatarUrl}")` }}></div>
       </div>
 
-      <main className="flex-1 overflow-y-auto relative scroll-smooth pt-16 md:pt-0">
+      <main className="flex-1 overflow-y-auto relative scroll-smooth pt-16 pb-20 md:pt-0 md:pb-0">
          <div className="mx-auto max-w-7xl p-4 md:p-6 lg:p-8 pb-24">
             {children}
          </div>
       </main>
+
+      {/* MOBILE BOTTOM NAV */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-surface-dark border-t border-[#5d4a35]/50 h-16 flex justify-around items-center z-40 pb-safe">
+          <BottomNavItem to="/" icon="home" label="Home" active={pathname === '/'} />
+          <BottomNavItem to="/habits" icon="science" label="Brew" active={pathname === '/habits'} />
+          <BottomNavItem to="/quests" icon="assignment_turned_in" label="Quest" active={pathname === '/quests'} />
+          <BottomNavItem to="/harvest" icon="forest" label="Harvest" active={pathname === '/harvest'} />
+          <BottomNavItem to="/shop" icon="storefront" label="Shop" active={pathname === '/shop'} />
+      </div>
     </div>
   );
 };
