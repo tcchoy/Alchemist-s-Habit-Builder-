@@ -581,29 +581,60 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     const saveToCloud = async (url: string, token: string) => {
+        if (!url || !token) {
+            showToast("URL and Token required", 'error');
+            return false;
+        }
         try {
             const data = exportSaveData();
-            const res = await fetch(url, {
+            // Attempt simple clean up of URL
+            const cleanUrl = url.replace(/\/$/, ''); 
+            const res = await fetch(cleanUrl, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                headers: { 
+                    'Content-Type': 'application/json', 
+                    'Authorization': `Bearer ${token}` 
+                },
                 body: data
             });
-            return res.ok;
-        } catch { return false; }
+            
+            if (!res.ok) {
+                console.error("Cloud Save Error:", res.status, await res.text());
+                showToast(`Save failed: ${res.status}`, 'error');
+                return false;
+            }
+            return true;
+        } catch (e: any) { 
+            console.error("Cloud Network Error:", e);
+            showToast("Network Error. Check Console.", 'error');
+            return false; 
+        }
     };
 
     const loadFromCloud = async (url: string, token: string) => {
+        if (!url || !token) {
+            showToast("URL and Token required", 'error');
+            return false;
+        }
         try {
-            const res = await fetch(url, {
+            const cleanUrl = url.replace(/\/$/, ''); 
+            const res = await fetch(cleanUrl, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) {
                 const text = await res.text();
                 importSaveData(text); // Use robust import
                 return true;
+            } else {
+                console.error("Cloud Load Error:", res.status, await res.text());
+                showToast(`Load failed: ${res.status}`, 'error');
+                return false;
             }
-            return false;
-        } catch { return false; }
+        } catch (e: any) { 
+            console.error("Cloud Network Error:", e);
+            showToast("Network Error. Check Console.", 'error');
+            return false; 
+        }
     };
 
     const isHabitDueToday = (habit: Habit): boolean => {
