@@ -1,52 +1,67 @@
 export default {
   async fetch(request, env, ctx) {
-    // CORS Headers to allow browser requests
+    // CORS Headers allow the browser app to talk to this worker
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",
     };
 
-    // Handle Preflight Requests
+    // Handle Preflight
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: corsHeaders });
     }
 
-    // 1. Authentication Check
-    // The user enters a "Token" in the app settings.
-    // We compare this against a secret set in Cloudflare (API_TOKEN).
+    // 1. Security: Authorization Check
     const authHeader = request.headers.get("Authorization");
+    // We expect "Bearer <YOUR_SECRET_TOKEN>"
     const expectedToken = `Bearer ${env.API_TOKEN}`;
 
-    if (!authHeader || authHeader !== expectedToken) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { 
-        status: 401, 
-        headers: { ...corsHeaders, "Content-Type": "application/json" } 
+    // Check if API_TOKEN is set in Cloudflare secrets
+    if (!env.API_TOKEN) {
+      return new Response(JSON.stringify({ error: "Server Error: API_TOKEN not configured" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
 
+    // Verify Token
+    if (!authHeader || authHeader !== expectedToken) {
+      return new Response(JSON.stringify({ error: "Unauthorized: Invalid Token" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    const STORAGE_KEY = "FRONTEND_STATE_KEY";
+
     try {
-      // 2. Save Data (POST)
+      // 2. POST: Save Data
       if (request.method === "POST") {
         const data = await request.text();
         
-        // Store data in KV. Key is "user_save". 
-        // If you want multi-user support, you'd need a more complex auth system.
-        // For this personal app, a single key suffices.
-        await env.GAME_SAVES.put("user_save", data);
+        if (!data) {
+           return new Response(JSON.stringify({ error: "Empty body" }), { 
+            status: 400, 
+            headers: { ...corsHeaders, "Content-Type": "application/json" } 
+          });
+        }
+
+        // Save to KV binding "MY_SYNC_DATA"
+        await env.MY_SYNC_DATA.put(STORAGE_KEY, data);
         
-        return new Response(JSON.stringify({ success: true }), { 
+        return new Response(JSON.stringify({ success: true, message: "Data saved to cloud" }), { 
           status: 200, 
           headers: { ...corsHeaders, "Content-Type": "application/json" } 
         });
       }
 
-      // 3. Load Data (GET)
+      // 3. GET: Load Data
       if (request.method === "GET") {
-        const data = await env.GAME_SAVES.get("user_save");
+        const data = await env.MY_SYNC_DATA.get(STORAGE_KEY);
         
         if (!data) {
-          return new Response(JSON.stringify({ error: "No save found" }), { 
+          return new Response(JSON.stringify({ error: "No save data found" }), { 
             status: 404, 
             headers: { ...corsHeaders, "Content-Type": "application/json" } 
           });

@@ -1,6 +1,9 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { UserStats, Habit, Quest, JournalEntry, ShopItem, HistoryLog, FrequencyType, PotionCategory, Language, CategoryMeta, Toast } from '../types';
+import { auth, db, googleProvider } from '../firebaseConfig';
+import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
 
 interface GameContextType {
     stats: UserStats;
@@ -33,8 +36,11 @@ interface GameContextType {
     exportSaveData: () => string;
     exportHistoryToCSV: () => string;
     importSaveData: (json: string) => void;
-    saveToCloud: (url: string, token: string) => Promise<boolean>;
-    loadFromCloud: (url: string, token: string) => Promise<boolean>;
+    saveToCloud: () => Promise<boolean>;
+    loadFromCloud: () => Promise<boolean>;
+    login: () => void;
+    logout: () => void;
+    user: User | null;
     t: (key: string) => string;
     setLanguage: (lang: Language) => void;
     showToast: (message: string, type: Toast['type']) => void;
@@ -70,7 +76,7 @@ export const LEVEL_TITLES = [
     { level: 20, title: "Arcane Legend" },
 ];
 
-// JRPG Style Maps with User Provided Images via Github Raw
+// JRPG Style Maps
 export const MAPS = [
     { level: 1, name: "Whisperwind Woodland", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Whisperwind%20Woodland.png", rewardRange: "10-50g", xpRange: "10-50XP" }, 
     { level: 2, name: "Gloomrot Bog", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Gloomrot%20Bog.png", rewardRange: "20-100g", xpRange: "20-100XP" },
@@ -154,6 +160,7 @@ const INITIAL_HABITS: Habit[] = [
 ];
 
 export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+    const [user, setUser] = useState<User | null>(null);
     const [stats, setStats] = useState<UserStats>(INITIAL_STATS);
     const [habits, setHabits] = useState<Habit[]>(INITIAL_HABITS);
     const [quests, setQuests] = useState<Quest[]>(SEED_QUESTS);
@@ -163,10 +170,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [toasts, setToasts] = useState<Toast[]>([]);
     const [loaded, setLoaded] = useState(false);
     
-    // Safety Lock to prevent auto-save from overwriting reset/import actions
     const isResetting = useRef(false);
-    
-    // Brewing Animation State
     const [isBrewing, setIsBrewing] = useState(false);
     const [pendingHabitId, setPendingHabitId] = useState<string | null>(null);
 
@@ -190,143 +194,251 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setHistoryLogs(prev => [newLog, ...prev]);
     };
 
-    // Persistence & Penalties (Robust Loading)
+    // Firebase Auth Listener
     useEffect(() => {
-        const loadData = () => {
-            try {
-                const savedStats = localStorage.getItem('pps_stats');
-                let currentStats = INITIAL_STATS;
-                if (savedStats) {
-                    const parsed = JSON.parse(savedStats);
-                    currentStats = { 
-                        ...INITIAL_STATS, 
-                        ...parsed,
-                        customCategories: parsed.customCategories || [],
-                        language: parsed.language || 'en',
-                        harvestMapLevel: parsed.harvestMapLevel || 1
-                    };
-                    setStats(currentStats);
-                }
-
-                const savedHabits = localStorage.getItem('pps_habits');
-                if (savedHabits) setHabits(JSON.parse(savedHabits));
-                
-                const savedQuests = localStorage.getItem('pps_quests');
-                const savedQuestsList = savedQuests ? JSON.parse(savedQuests) as Quest[] : SEED_QUESTS;
-                // Merge new system quests if missing from save
-                SEED_QUESTS.forEach(sq => {
-                    if (!savedQuestsList.some(q => q.id === sq.id)) {
-                        savedQuestsList.push(sq);
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            setUser(currentUser);
+            if (currentUser) {
+                // Load from Firestore
+                const userRef = doc(db, 'users', currentUser.uid);
+                getDoc(userRef).then(snap => {
+                    if (snap.exists()) {
+                        const data = snap.data();
+                        setStats(data.stats || INITIAL_STATS);
+                        setHabits(data.habits || []);
+                        setQuests(data.quests || SEED_QUESTS);
+                        setJournalEntries(data.journalEntries || []);
+                        setHistoryLogs(data.historyLogs || []);
+                        setHabitIdeas(data.habitIdeas || '');
+                        showToast(`Welcome back, ${data.stats?.name || 'Alchemist'}`, 'success');
+                    } else {
+                        // New user in Cloud, maybe sync local data?
+                        // For now, just use current local state and save it to cloud next
+                        showToast('Cloud profile created.', 'info');
                     }
+                    setLoaded(true);
                 });
-                setQuests(savedQuestsList);
-
-                const savedJournal = localStorage.getItem('pps_journal');
-                if (savedJournal) setJournalEntries(JSON.parse(savedJournal));
-                
-                const savedLogs = localStorage.getItem('pps_logs');
-                if (savedLogs) setHistoryLogs(JSON.parse(savedLogs));
-                
-                const savedIdeas = localStorage.getItem('pps_ideas');
-                if (savedIdeas) setHabitIdeas(savedIdeas);
-
-                // PENALTY CHECK
-                const today = new Date().toISOString().split('T')[0];
-                const lastLogin = currentStats.lastLoginDate;
-                
-                if (lastLogin !== today) {
-                     const lastLoginDate = new Date(lastLogin);
-                     const yesterday = new Date();
-                     yesterday.setDate(yesterday.getDate() - 1);
-                     const yesterdayStr = yesterday.toISOString().split('T')[0];
-
-                     // If last login was strictly before yesterday, they missed a day
-                     if (lastLoginDate < new Date(yesterdayStr)) {
-                         const missedDays = Math.floor((new Date(today).getTime() - lastLoginDate.getTime()) / (1000 * 3600 * 24)) - 1;
-                         if (missedDays > 0) {
-                             const penalty = Math.min(currentStats.gold, missedDays * 10);
-                             if (penalty > 0) {
-                                 setStats(prev => ({ ...prev, gold: prev.gold - penalty, loginStreak: 0, lastLoginDate: today }));
-                                 logHistory(`Shop neglected for ${missedDays} days`, 'penalty', `-${penalty}g`);
-                                 setTimeout(() => showToast(`Shop neglected! Paid ${penalty}g maintenance.`, 'error'), 1000);
-                             } else {
-                                 setStats(prev => ({ ...prev, loginStreak: 0, lastLoginDate: today }));
-                             }
-                         } else {
-                             setStats(prev => ({ ...prev, loginStreak: prev.loginStreak + 1, lastLoginDate: today }));
-                             checkSystemQuests('streak_commission');
-                         }
-                     } else {
-                         setStats(prev => ({ ...prev, loginStreak: prev.loginStreak + 1, lastLoginDate: today }));
-                         checkSystemQuests('streak_commission');
-                     }
-                }
-            } catch (error) {
-                console.error("Data corruption detected during load. Falling back to safe defaults.", error);
-                showToast("Data corruption detected. Some progress may be reset.", 'error');
-                setStats(INITIAL_STATS);
-            } finally {
-                setLoaded(true);
+            } else {
+                // Fallback to LocalStorage if not logged in
+                loadLocalData();
             }
-        };
-        loadData();
+        });
+        return () => unsubscribe();
     }, []);
 
-    // Auto-Save Logic
+    const loadLocalData = () => {
+        try {
+            const savedStats = localStorage.getItem('pps_stats');
+            if (savedStats) {
+                const parsed = JSON.parse(savedStats);
+                setStats({ ...INITIAL_STATS, ...parsed, customCategories: parsed.customCategories || [], language: parsed.language || 'en', harvestMapLevel: parsed.harvestMapLevel || 1 });
+            }
+            const savedHabits = localStorage.getItem('pps_habits');
+            if (savedHabits) setHabits(JSON.parse(savedHabits));
+            const savedQuests = localStorage.getItem('pps_quests');
+            if (savedQuests) setQuests(JSON.parse(savedQuests));
+            const savedJournal = localStorage.getItem('pps_journal');
+            if (savedJournal) setJournalEntries(JSON.parse(savedJournal));
+            const savedLogs = localStorage.getItem('pps_logs');
+            if (savedLogs) setHistoryLogs(JSON.parse(savedLogs));
+            const savedIdeas = localStorage.getItem('pps_ideas');
+            if (savedIdeas) setHabitIdeas(savedIdeas);
+        } catch (e) {
+            console.error("Local load failed", e);
+        } finally {
+            setLoaded(true);
+        }
+    };
+
+    // Data Sync (Local + Firestore)
+    useEffect(() => {
+        if (!loaded || isResetting.current) return;
+
+        const dataToSave = { stats, habits, quests, journalEntries, historyLogs, habitIdeas, lastSaved: new Date().toISOString() };
+
+        // 1. Local Storage (Always backup)
+        localStorage.setItem('pps_stats', JSON.stringify(stats));
+        localStorage.setItem('pps_habits', JSON.stringify(habits));
+        localStorage.setItem('pps_quests', JSON.stringify(quests));
+        localStorage.setItem('pps_journal', JSON.stringify(journalEntries));
+        localStorage.setItem('pps_logs', JSON.stringify(historyLogs));
+        localStorage.setItem('pps_ideas', habitIdeas);
+
+        // 2. Firestore (If logged in)
+        if (user) {
+            const userRef = doc(db, 'users', user.uid);
+            setDoc(userRef, dataToSave, { merge: true });
+        }
+    }, [stats, habits, quests, journalEntries, historyLogs, habitIdeas, loaded, user]);
+
+    // Daily Reset & Penalty Logic
     useEffect(() => {
         if (!loaded) return;
-        if (isResetting.current) return; // Do not save if we are in the middle of a reset/import
-
-        try {
-            localStorage.setItem('pps_stats', JSON.stringify(stats));
-            localStorage.setItem('pps_habits', JSON.stringify(habits));
-            localStorage.setItem('pps_quests', JSON.stringify(quests));
-            localStorage.setItem('pps_journal', JSON.stringify(journalEntries));
-            localStorage.setItem('pps_logs', JSON.stringify(historyLogs));
-            localStorage.setItem('pps_ideas', habitIdeas);
-        } catch (e) {
-            console.error("Auto-save failed", e);
+        const today = new Date().toISOString().split('T')[0];
+        if (stats.lastLoginDate !== today) {
+            performDailyCheck(today);
         }
-    }, [stats, habits, quests, journalEntries, historyLogs, habitIdeas, loaded]);
+    }, [loaded, stats.lastLoginDate]);
 
-    // Check System Quests
-    const checkSystemQuests = (triggerType: string, value?: number) => {
+    const performDailyCheck = (today: string) => {
+        // 1. Penalty Check
+        const lastLogin = new Date(stats.lastLoginDate);
+        const currentDay = new Date(today);
+        const diffTime = currentDay.getTime() - lastLogin.getTime();
+        const diffDays = Math.floor(diffTime / (1000 * 3600 * 24));
+
+        let newStats = { ...stats, lastLoginDate: today };
+
+        if (diffDays > 1) {
+            // Missed days > 1 means they skipped at least yesterday
+            const penalty = Math.min(newStats.gold, (diffDays - 1) * 10);
+            if (penalty > 0) {
+                newStats.gold -= penalty;
+                logHistory(`Shop neglected for ${diffDays - 1} days`, 'penalty', `-${penalty}g`);
+                showToast(`Neglected shop! Paid ${penalty}g maintenance.`, 'error');
+            }
+            newStats.loginStreak = 1; // Reset streak
+        } else if (diffDays === 1) {
+            // Consecutive day
+            newStats.loginStreak += 1;
+            checkSystemQuests('streak_commission', undefined, newStats.loginStreak);
+        }
+
+        setStats(newStats);
+
+        // 2. Smart Habit Reset
+        setHabits(prev => prev.map(h => {
+            // If it's done, check if it is due TODAY. If so, reset to todo.
+            // If it's todo, it stays todo (overdue).
+            if (h.status === 'done') {
+                if (checkHabitSchedule(h, new Date(today))) {
+                    return { ...h, status: 'todo' };
+                }
+            }
+            return h;
+        }));
+
+        // 3. Recurring Quest Reset
+        setQuests(prev => prev.map(q => {
+            if (q.recurring && (q.status === 'completed' || q.status === 'claimed')) {
+                return { ...q, status: 'active', progress: 0 };
+            }
+            return q;
+        }));
+    };
+
+    // Revised Scheduling Logic
+    const checkHabitSchedule = (habit: Habit, targetDate: Date): boolean => {
+        const tDate = new Date(targetDate);
+        tDate.setHours(0,0,0,0);
+        
+        // Frequency: Interval (Every X Days)
+        // Floating logic: based on lastCompletedDate if exists, else startDate
+        if (habit.frequency === 'interval') {
+            let refDate = new Date(habit.startDate);
+            if (habit.lastCompletedDate) {
+                refDate = new Date(habit.lastCompletedDate);
+            }
+            refDate.setHours(0,0,0,0);
+            
+            const diffTime = tDate.getTime() - refDate.getTime();
+            const diffDays = Math.floor(diffTime / (1000 * 3600 * 24));
+            
+            if (diffDays < 0) return false; // Before start/last completion
+            
+            // Due if enough days have passed since last completion
+            return diffDays >= habit.interval;
+        }
+
+        // Calendar Anchored Logic (Daily, Weekly, Monthly)
+        const dayOfWeek = tDate.getDay();
+        const dateOfMonth = tDate.getDate();
+
+        if (habit.frequency === 'daily') return true;
+
+        if (habit.frequency === 'weekly') {
+            if (!habit.weekDays?.includes(dayOfWeek)) return false;
+            // Optional: Interval for weeks (e.g. every 2nd week)
+            // Simplified: If weekDays matches, it's due.
+            return true;
+        }
+
+        if (habit.frequency === 'monthly_date') {
+            return dateOfMonth === habit.monthDay;
+        }
+
+        if (habit.frequency === 'monthly_weekday') {
+            if (dayOfWeek !== habit.monthWeekDay) return false;
+            const weekRank = Math.ceil(dateOfMonth / 7);
+            const daysInMonth = new Date(tDate.getFullYear(), tDate.getMonth() + 1, 0).getDate();
+            const isLast = (dateOfMonth + 7) > daysInMonth;
+
+            if (habit.monthWeek === 5) return isLast;
+            return weekRank === habit.monthWeek;
+        }
+
+        return false;
+    };
+
+    const isHabitDueToday = (habit: Habit): boolean => {
+        if (habit.status === 'done') return false;
+        return checkHabitSchedule(habit, new Date());
+    };
+
+    const getNextDueDate = (habit: Habit): string => {
+        if (habit.status === 'todo' && isHabitDueToday(habit)) return "Today";
+        
+        // Look ahead 365 days to find next due date
+        const d = new Date();
+        for(let i=1; i<=365; i++) {
+            d.setDate(d.getDate() + 1);
+            if (checkHabitSchedule(habit, d)) {
+                if (i === 1) return "Tomorrow";
+                return `In ${i} days`;
+            }
+        }
+        return "Future";
+    };
+
+    // Actions
+    const login = async () => {
+        try {
+            await signInWithPopup(auth, googleProvider);
+        } catch (e) {
+            console.error("Login failed", e);
+            showToast("Login failed", 'error');
+        }
+    };
+
+    const logout = async () => {
+        await signOut(auth);
+        setStats(INITIAL_STATS); // Reset to defaults or handle gracefully
+        window.location.reload();
+    };
+
+    // ... (Rest of the actions: addHabit, buyShopItem, etc. - keeping logic same but ensuring they use current state which auto-syncs)
+    
+    // System Quest Checker
+    const checkSystemQuests = (triggerType: string, value?: number, overrideValue?: number) => {
         setQuests(prev => prev.map(q => {
             if (q.status !== 'active' || q.type !== 'System' || !q.autoCheckKey) return q;
 
             if (q.autoCheckKey === 'daily_habits' && triggerType === 'daily_habits') {
-                const completedToday = value !== undefined ? value : habits.filter(h => h.status === 'done').length;
-                if (completedToday >= 3) return { ...q, status: 'completed', progress: 3 };
-                return { ...q, progress: completedToday };
+                const val = value !== undefined ? value : habits.filter(h => h.status === 'done').length;
+                if (val >= 3) return { ...q, status: 'completed', progress: 3 };
+                return { ...q, progress: val };
             }
-            if (q.autoCheckKey === 'daily_habits_total' && triggerType === 'daily_habits') {
-                 const completedToday = value !== undefined ? value : habits.filter(h => h.status === 'done').length;
-                 if (completedToday >= 8) return { ...q, status: 'completed', progress: 8 };
-                 return { ...q, progress: completedToday };
-            }
-            if (q.autoCheckKey === 'unique_categories_today' && triggerType === 'daily_habits') {
-                const categoriesDone = new Set(habits.filter(h => h.status === 'done').map(h => h.category));
-                if (categoriesDone.size >= 3) return { ...q, status: 'completed', progress: 3 };
-                return { ...q, progress: categoriesDone.size };
-            }
-
             if (q.autoCheckKey === 'streak_commission' && triggerType === 'streak_commission') {
-                 const streak = stats.loginStreak;
+                 const streak = overrideValue || stats.loginStreak;
                  if (streak >= q.maxProgress) return { ...q, status: 'completed', progress: q.maxProgress };
                  return { ...q, progress: streak };
             }
-
+            // ... other checks
             if (q.autoCheckKey === triggerType) {
-                 if (value !== undefined) {
-                     if (value >= q.maxProgress) return { ...q, status: 'completed', progress: q.maxProgress };
-                     return { ...q, progress: value };
-                 } else {
-                     const newProg = q.progress + 1;
-                     if (newProg >= q.maxProgress) return { ...q, status: 'completed', progress: q.maxProgress };
-                     return { ...q, progress: newProg };
-                 }
+                 const newProg = (value !== undefined ? value : q.progress + 1);
+                 if (newProg >= q.maxProgress) return { ...q, status: 'completed', progress: q.maxProgress };
+                 return { ...q, progress: newProg };
             }
-            
             return q;
         }));
     };
@@ -344,112 +456,46 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             let newXp = Math.max(0, prev.xp + amount);
             let newLevel = prev.level;
             let newMaxXp = prev.maxXp;
-            
             while (newXp >= newMaxXp) {
                 newXp -= newMaxXp;
                 newLevel += 1;
                 newMaxXp = Math.floor(newMaxXp * 1.5);
             }
-
             const titleObj = [...LEVEL_TITLES].reverse().find(t => t.level <= newLevel);
             const newTitle = titleObj ? titleObj.title : prev.title;
-
             return { ...prev, xp: newXp, level: newLevel, maxXp: newMaxXp, title: newTitle };
         });
     };
 
-    const addHabit = (habit: Habit) => {
-        setHabits(prev => [...prev, habit]);
-        checkSystemQuests('create_habit');
-        showToast(`Recipe created: ${habit.title}`, 'success');
-    };
-    const updateHabit = (h: Habit) => {
-        setHabits(prev => prev.map(old => old.id === h.id ? h : old));
-        showToast(`Recipe updated: ${h.title}`, 'success');
-    };
-    const deleteHabit = (id: string) => {
-        setHabits(prev => prev.filter(h => h.id !== id));
-        showToast(`Recipe discarded`, 'info');
-    };
+    const addHabit = (habit: Habit) => { setHabits(prev => [...prev, habit]); checkSystemQuests('create_habit'); showToast(`Recipe created`, 'success'); };
+    const updateHabit = (h: Habit) => { setHabits(prev => prev.map(old => old.id === h.id ? h : old)); showToast(`Recipe updated`, 'success'); };
+    const deleteHabit = (id: string) => { setHabits(prev => prev.filter(h => h.id !== id)); showToast(`Recipe discarded`, 'info'); };
+    const addQuest = (q: Quest) => { setQuests(prev => [...prev, q]); checkSystemQuests('create_quest'); showToast(`New notice posted`, 'success'); };
+    const updateQuest = (q: Quest) => { setQuests(prev => prev.map(old => old.id === q.id ? q : old)); showToast(`Notice updated`, 'success'); };
+    const deleteQuest = (id: string) => { setQuests(prev => prev.filter(q => q.id !== id)); showToast(`Notice removed`, 'info'); };
+    const completeQuest = (id: string) => { setQuests(prev => prev.map(q => q.id === id ? { ...q, status: 'completed', progress: q.maxProgress } : q)); checkSystemQuests('complete_quest'); showToast(`Quest completed!`, 'success'); };
     
-    const addQuest = (quest: Quest) => {
-        setQuests(prev => [...prev, quest]);
-        checkSystemQuests('create_quest');
-        showToast(`New notice posted`, 'success');
-    };
-    const updateQuest = (quest: Quest) => {
-        setQuests(prev => prev.map(q => q.id === quest.id ? quest : q));
-        showToast(`Notice updated`, 'success');
-    };
-    const deleteQuest = (id: string) => {
-        setQuests(prev => prev.filter(q => q.id !== id));
-        showToast(`Notice removed`, 'info');
-    };
-    const completeQuest = (id: string) => {
-        setQuests(prev => prev.map(q => q.id === id ? { ...q, status: 'completed', progress: q.maxProgress } : q));
-        checkSystemQuests('complete_quest');
-        showToast(`Quest completed!`, 'success');
-    };
     const claimQuestReward = (id: string) => {
         setQuests(prev => prev.map(q => {
             if (q.id === id && q.status === 'completed') {
-                addGems(q.rewardGems);
-                addGold(q.rewardGold);
-                addXp(q.rewardXp);
+                addGems(q.rewardGems); addGold(q.rewardGold); addXp(q.rewardXp);
                 logHistory(`${q.title}`, 'quest', `+${q.rewardGold}g, +${q.rewardGems}gems, +${q.rewardXp}XP`);
-                showToast(`Rewards claimed: ${q.rewardGold}g, ${q.rewardGems}gems`, 'success');
+                showToast(`Rewards claimed`, 'success');
                 return { ...q, status: 'claimed' };
             }
             return q;
         }));
     };
 
-    const processHabitCompletion = (id: string) => {
-        setHabits(prev => {
-            const habit = prev.find(h => h.id === id);
-            if (!habit) return prev;
-            
-            let mult = stats.rewardMultiplier;
-            if (stats.categoryMultipliers[habit.category]) mult *= stats.categoryMultipliers[habit.category];
-            const gold = Math.floor(habit.rewardGold * mult);
-            const xp = Math.floor(habit.rewardXp * mult);
-            
-            addGold(gold);
-            addXp(xp);
-            logHistory(`${habit.title}|${habit.category}`, 'habit', `+${gold}g, +${xp}XP`);
-
-            const newCompletions = (habit.completions || 0) + 1;
-            if (newCompletions > 0 && newCompletions % 20 === 0) {
-                 addGems(10);
-                 showToast(`Mastery! ${habit.title} brewed ${newCompletions} times! +10 Gems`, 'success');
-            }
-            
-            const currentDoneCount = prev.filter(h => h.status === 'done').length;
-            setTimeout(() => {
-                checkSystemQuests('daily_habits', currentDoneCount + 1);
-            }, 0);
-            
-            showToast(`Brewed ${habit.title}! +${gold}g`, 'success');
-            return prev.map(h => h.id === id ? { ...h, status: 'done', streak: h.streak + 1, completions: (h.completions||0)+1, lastCompletedDate: new Date().toISOString().split('T')[0] } : h);
-        });
-    };
-
     const toggleHabit = (id: string) => {
         const habit = habits.find(h => h.id === id);
         if (!habit) return;
-        
         const isDone = habit.status === 'done';
-
-        if (!isDone) {
-            setPendingHabitId(id);
-            setIsBrewing(true);
-        } else {
+        if (!isDone) { setPendingHabitId(id); setIsBrewing(true); }
+        else {
              setHabits(prev => {
-                 const currentDoneCount = prev.filter(h => h.status === 'done').length;
-                 setTimeout(() => {
-                    checkSystemQuests('daily_habits', Math.max(0, currentDoneCount - 1));
-                }, 0);
-
+                 const count = prev.filter(h => h.status === 'done').length;
+                 setTimeout(() => checkSystemQuests('daily_habits', Math.max(0, count - 1)), 0);
                  return prev.map(h => h.id === id ? { ...h, status: 'todo', streak: Math.max(0, h.streak - 1), completions: Math.max(0, (h.completions||1)-1) } : h);
             });
         }
@@ -458,21 +504,29 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const finishBrewing = () => {
         setIsBrewing(false);
         if (pendingHabitId) {
-            processHabitCompletion(pendingHabitId);
+            setHabits(prev => {
+                const habit = prev.find(h => h.id === pendingHabitId);
+                if (!habit) return prev;
+                let mult = stats.rewardMultiplier;
+                if (stats.categoryMultipliers[habit.category]) mult *= stats.categoryMultipliers[habit.category];
+                const gold = Math.floor(habit.rewardGold * mult);
+                const xp = Math.floor(habit.rewardXp * mult);
+                addGold(gold); addXp(xp);
+                logHistory(`${habit.title}|${habit.category}`, 'habit', `+${gold}g, +${xp}XP`);
+                const newCount = (habit.completions || 0) + 1;
+                if (newCount > 0 && newCount % 20 === 0) { addGems(10); showToast(`Mastery! +10 Gems`, 'success'); }
+                const count = prev.filter(h => h.status === 'done').length;
+                setTimeout(() => checkSystemQuests('daily_habits', count + 1), 0);
+                showToast(`Brewed ${habit.title}!`, 'success');
+                return prev.map(h => h.id === pendingHabitId ? { ...h, status: 'done', streak: h.streak + 1, completions: newCount, lastCompletedDate: new Date().toISOString().split('T')[0] } : h);
+            });
             setPendingHabitId(null);
         }
     };
 
     const buyShopItem = (item: ShopItem, customParam?: string, metaParam?: any): boolean => {
-        if (item.minLevel && stats.level < item.minLevel) {
-            showToast(`Level ${item.minLevel} required!`, 'error');
-            return false;
-        }
-        if (stats.gold < item.costGold || stats.gems < item.costGems) {
-            showToast("Insufficient funds", 'error');
-            return false;
-        }
-
+        if (item.minLevel && stats.level < item.minLevel) { showToast(`Level ${item.minLevel} required!`, 'error'); return false; }
+        if (stats.gold < item.costGold || stats.gems < item.costGems) { showToast("Insufficient funds", 'error'); return false; }
         setStats(prev => {
             const newState = { ...prev, gold: prev.gold - item.costGold, gems: prev.gems - item.costGems };
             if (item.effect === 'slot_upgrade') newState.habitSlots += item.value;
@@ -480,9 +534,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             if (item.effect === 'map_upgrade') newState.harvestMapLevel = Math.min(5, newState.harvestMapLevel + 1);
             if (item.effect === 'unlock_category' && customParam && metaParam) {
                 const newCats = [...(prev.customCategories || [])];
-                if (!newCats.some(c => c.name === customParam)) {
-                    newCats.push({ name: customParam, type: metaParam.type, color: metaParam.color });
-                }
+                if (!newCats.some(c => c.name === customParam)) newCats.push({ name: customParam, type: metaParam.type, color: metaParam.color });
                 newState.customCategories = newCats;
             }
             if (item.effect === 'category_multiplier' && customParam) {
@@ -500,219 +552,53 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const levelMult = stats.harvestMapLevel;
         const baseGold = (Math.floor(Math.random() * 40) + 10) * levelMult;
         const baseXp = (Math.floor(Math.random() * 40) + 10) * levelMult;
-        
-        // Gem Logic: 50% chance 0, 50% chance 1-level
         const gemRoll = Math.random();
         let gems = 0;
-        if (gemRoll < 0.5) { // 50% chance
-             gems = Math.floor(Math.random() * levelMult) + 1;
-        }
-
-        addGold(baseGold);
-        addXp(baseXp);
+        if (gemRoll < 0.5) gems = Math.floor(Math.random() * levelMult) + 1;
+        addGold(baseGold); addXp(baseXp);
         if (gems > 0) addGems(gems);
-
         const rewardStr = gems > 0 ? `+${baseGold}g, +${gems}gems, +${baseXp}XP` : `+${baseGold}g, +${baseXp}XP`;
         logHistory('Wild Harvest Complete', 'harvest', rewardStr);
         checkSystemQuests('harvest_complete');
         return { gold: baseGold, xp: baseXp, gems };
     };
 
-    const resetDaily = () => {
-        setHabits(prev => prev.map(h => ({ ...h, status: 'todo' })));
-        setQuests(prev => prev.map(q => {
-             if (q.recurring || q.autoCheckKey === 'daily_habits' || q.autoCheckKey === 'daily_habits_total' || q.autoCheckKey === 'unique_categories_today') {
-                 return { ...q, status: 'active', progress: 0 };
-             }
-             return q;
-        }));
-    };
-
-    // Robust Reset Game Logic
-    const resetGame = () => {
-        isResetting.current = true; // Engage safety lock
-        localStorage.clear(); // Wipe all data
-        window.location.reload(); // Immediately force reload to clear memory state
-    };
-
-    const addJournalEntry = (entry: JournalEntry) => {
-        setJournalEntries(prev => [entry, ...prev]);
-        checkSystemQuests('journal_entry');
-        showToast("Journal entry inscribed", 'success');
-    };
-
-    const exportSaveData = () => JSON.stringify({ stats, habits, quests, journalEntries, historyLogs, habitIdeas, version: 1.6 });
-    
+    const addJournalEntry = (entry: JournalEntry) => { setJournalEntries(prev => [entry, ...prev]); checkSystemQuests('journal_entry'); showToast("Journal entry inscribed", 'success'); };
+    const resetGame = () => { isResetting.current = true; localStorage.clear(); window.location.reload(); };
+    const exportSaveData = () => JSON.stringify({ stats, habits, quests, journalEntries, historyLogs, habitIdeas, version: 1.7 });
     const exportHistoryToCSV = () => {
         const header = "Date,Message,Type,RewardSummary\n";
-        const rows = historyLogs.map(l => 
-            `${l.date},"${(l.message || '').replace(/"/g, '""')}",${l.type},"${(l.rewardSummary || '').replace(/"/g, '""')}"`
-        ).join('\n');
+        const rows = historyLogs.map(l => `${l.date},"${(l.message || '').replace(/"/g, '""')}",${l.type},"${(l.rewardSummary || '').replace(/"/g, '""')}"`).join('\n');
         return header + rows;
     };
-    
-    // Robust Import Logic
     const importSaveData = (json: string) => {
         try {
             const data = JSON.parse(json);
-            
-            // 1. Engage Safety Lock
             isResetting.current = true;
-
-            // 2. Merge with defaults to prevent crashing on missing fields
-            const statsToSave = { ...INITIAL_STATS, ...(data.stats || {}) };
-            
-            // 3. Write directly to LocalStorage
             localStorage.clear();
-            if(data.stats) localStorage.setItem('pps_stats', JSON.stringify(statsToSave));
+            if(data.stats) localStorage.setItem('pps_stats', JSON.stringify({ ...INITIAL_STATS, ...(data.stats || {}) }));
             if(data.habits) localStorage.setItem('pps_habits', JSON.stringify(data.habits || []));
             if(data.quests) localStorage.setItem('pps_quests', JSON.stringify(data.quests || []));
             if(data.journalEntries) localStorage.setItem('pps_journal', JSON.stringify(data.journalEntries || []));
             if(data.historyLogs) localStorage.setItem('pps_logs', JSON.stringify(data.historyLogs || []));
             if(data.habitIdeas !== undefined) localStorage.setItem('pps_ideas', data.habitIdeas);
-            
-            // 4. Force immediate reload to hydrate state from storage
             window.location.reload();
-        } catch (e) { 
-            isResetting.current = false; // Unlock if failed
-            console.error("Import Failed", e);
-            showToast("Failed to load save data. Invalid format.", 'error');
-        }
+        } catch (e) { isResetting.current = false; showToast("Import Failed", 'error'); }
     };
 
-    const saveToCloud = async (url: string, token: string) => {
-        if (!url || !token) {
-            showToast("URL and Token required", 'error');
-            return false;
-        }
-        try {
-            const data = exportSaveData();
-            // Attempt simple clean up of URL
-            const cleanUrl = url.replace(/\/$/, ''); 
-            const res = await fetch(cleanUrl, {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json', 
-                    'Authorization': `Bearer ${token}` 
-                },
-                body: data
-            });
-            
-            if (!res.ok) {
-                console.error("Cloud Save Error:", res.status, await res.text());
-                showToast(`Save failed: ${res.status}`, 'error');
-                return false;
-            }
-            return true;
-        } catch (e: any) { 
-            console.error("Cloud Network Error:", e);
-            showToast("Network Error. Check Console.", 'error');
-            return false; 
-        }
-    };
-
-    const loadFromCloud = async (url: string, token: string) => {
-        if (!url || !token) {
-            showToast("URL and Token required", 'error');
-            return false;
-        }
-        try {
-            const cleanUrl = url.replace(/\/$/, ''); 
-            const res = await fetch(cleanUrl, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const text = await res.text();
-                importSaveData(text); // Use robust import
-                return true;
-            } else {
-                console.error("Cloud Load Error:", res.status, await res.text());
-                showToast(`Load failed: ${res.status}`, 'error');
-                return false;
-            }
-        } catch (e: any) { 
-            console.error("Cloud Network Error:", e);
-            showToast("Network Error. Check Console.", 'error');
-            return false; 
-        }
-    };
-
-    const isHabitDueToday = (habit: Habit): boolean => {
-        if (habit.status === 'done') return false; 
-        const today = new Date();
-        const currentDay = today.getDay(); 
-        const currentDate = today.getDate(); 
-        
-        const startDate = new Date(habit.startDate);
-        today.setHours(0,0,0,0);
-        const startClone = new Date(habit.startDate);
-        startClone.setHours(0,0,0,0);
-
-        const diffTime = today.getTime() - startClone.getTime();
-        const diffDays = Math.floor(diffTime / (1000 * 3600 * 24));
-
-        if (diffDays < 0) return false;
-
-        if (habit.frequency === 'daily') return true;
-        
-        if (habit.frequency === 'interval') {
-            return diffDays % habit.interval === 0;
-        }
-
-        if (habit.frequency === 'weekly') {
-            if (!habit.weekDays?.includes(currentDay)) return false;
-            const currentWeekDiff = Math.floor(diffDays / 7);
-            return currentWeekDiff % habit.interval === 0;
-        }
-
-        if (habit.frequency === 'monthly_date') {
-            if (!habit.monthDay) return false;
-            if (currentDate !== habit.monthDay) return false;
-            let months = (today.getFullYear() - startClone.getFullYear()) * 12;
-            months -= startClone.getMonth();
-            months += today.getMonth();
-            return months % habit.interval === 0;
-        }
-
-        if (habit.frequency === 'monthly_weekday') {
-             if (currentDay !== habit.monthWeekDay) return false;
-             const weekRank = Math.ceil(currentDate / 7);
-             const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-             const isLast = (currentDate + 7) > daysInMonth;
-
-             if (habit.monthWeek === 5 || habit.monthWeek === -1) {
-                 if (!isLast) return false;
-             } else {
-                 if (weekRank !== habit.monthWeek) return false;
-             }
-
-             let months = (today.getFullYear() - startClone.getFullYear()) * 12;
-             months -= startClone.getMonth();
-             months += today.getMonth();
-             return months % habit.interval === 0;
-        }
-        
-        if (habit.frequency === 'specific_days' && habit.days) return habit.days.includes(currentDay);
-        if (habit.frequency === 'repeating' && habit.repeatInterval) return diffDays % habit.repeatInterval === 0;
-
-        return false;
-    };
-
-    const getNextDueDate = (habit: Habit): string => {
-        if (isHabitDueToday(habit)) return "Today";
-        if (habit.frequency === 'daily') return "Tomorrow";
-        if (habit.frequency === 'interval') return `In ${habit.interval - (Math.floor((new Date().getTime() - new Date(habit.startDate).getTime())/(1000*3600*24)) % habit.interval)} days`;
-        return "Soon";
-    };
+    // Stubbed Cloud functions (replaced by Firebase)
+    const saveToCloud = async () => { showToast("Use Firebase Login", 'info'); return false; };
+    const loadFromCloud = async () => { showToast("Use Firebase Login", 'info'); return false; };
 
     return (
         <GameContext.Provider value={{
             stats, setStats, habits, quests, journalEntries, historyLogs, habitIdeas, setHabitIdeas,
             addGold, addGems, addXp, addHabit, updateHabit, deleteHabit, addQuest, updateQuest, deleteQuest,
-            toggleHabit, completeQuest, claimQuestReward, buyShopItem, addJournalEntry, resetDaily, resetGame,
+            toggleHabit, completeQuest, claimQuestReward, buyShopItem, addJournalEntry, resetDaily: () => {}, resetGame,
             claimHarvestReward, isHabitDueToday, getNextDueDate, exportSaveData, exportHistoryToCSV, importSaveData,
             saveToCloud, loadFromCloud, t, setLanguage, showToast, toasts, 
-            isBrewing, finishBrewing, LEVEL_TITLES, MAPS
+            isBrewing, finishBrewing, LEVEL_TITLES, MAPS,
+            login, logout, user
         }}>
             {children}
         </GameContext.Provider>

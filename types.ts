@@ -2,6 +2,7 @@
 export type Language = 'en' | 'zh-TW';
 
 export interface UserStats {
+    uid?: string; // Firebase User ID
     level: number;
     xp: number;
     maxXp: number;

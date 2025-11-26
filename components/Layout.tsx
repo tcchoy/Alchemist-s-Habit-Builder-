@@ -36,12 +36,9 @@ const BottomNavItem = ({ to, icon, label, active }: { to: string; icon: string; 
 );
 
 const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-    const { exportSaveData, exportHistoryToCSV, importSaveData, stats, setStats, saveToCloud, loadFromCloud, setLanguage, resetGame } = useGame();
+    const { exportSaveData, exportHistoryToCSV, importSaveData, stats, setStats, setLanguage, resetGame, login, logout, user } = useGame();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [newName, setNewName] = useState(stats.shopName);
-    const [cloudUrl, setCloudUrl] = useState('');
-    const [cloudToken, setCloudToken] = useState('');
-    const [cloudStatus, setCloudStatus] = useState('');
     const [activeTab, setActiveTab] = useState<'general' | 'data'>('general');
 
     const getTimestampedFilename = (prefix: string, ext: string) => {
@@ -87,23 +84,9 @@ const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         const reader = new FileReader();
         reader.onload = (event) => {
             const text = event.target?.result as string;
-            // importSaveData will force a reload if successful
             importSaveData(text);
         };
         reader.readAsText(file);
-    };
-
-    const handleCloudSave = async () => {
-        setCloudStatus('Saving...');
-        const success = await saveToCloud(cloudUrl, cloudToken);
-        setCloudStatus(success ? 'Saved to Cloud!' : 'Failed to Save');
-    };
-
-    const handleCloudLoad = async () => {
-        setCloudStatus('Loading...');
-        // loadFromCloud will trigger importSaveData and force reload if successful
-        const success = await loadFromCloud(cloudUrl, cloudToken);
-        if (!success) setCloudStatus('Failed to Load');
     };
 
     const handleReset = () => {
@@ -149,17 +132,25 @@ const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
                     {activeTab === 'data' && (
                         <div className="space-y-6">
-                            {/* Cloud Sync */}
+                            {/* Cloud Sync (Firebase) */}
                             <div className="p-4 bg-black/20 rounded-xl border border-white/5 space-y-3">
-                                 <h3 className="text-white font-bold flex items-center gap-2 text-sm"><span className="material-symbols-outlined text-orange-400 text-base">cloud_sync</span> Cloud Sync (Cross-Device)</h3>
-                                 <p className="text-[10px] text-stone-400">Sync data between devices using a Cloudflare Worker or compatible endpoint.</p>
-                                 <input placeholder="Worker URL (e.g. https://my-worker.workers.dev)" value={cloudUrl} onChange={e => setCloudUrl(e.target.value)} className="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white text-xs font-mono" spellCheck={false} />
-                                 <input placeholder="API Token" type="password" value={cloudToken} onChange={e => setCloudToken(e.target.value)} className="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white text-xs font-mono" />
-                                 <div className="flex gap-2">
-                                     <button onClick={handleCloudSave} className="flex-1 bg-white/10 hover:bg-white/20 text-white py-2 rounded text-xs font-bold">Save to Cloud</button>
-                                     <button onClick={handleCloudLoad} className="flex-1 bg-white/10 hover:bg-white/20 text-white py-2 rounded text-xs font-bold">Load from Cloud</button>
-                                 </div>
-                                 {cloudStatus && <p className="text-xs text-center text-primary">{cloudStatus}</p>}
+                                 <h3 className="text-white font-bold flex items-center gap-2"><span className="material-symbols-outlined text-orange-400 text-base">cloud_sync</span> Cloud Account</h3>
+                                 <p className="text-[10px] text-stone-400">Sign in to sync your progress across devices.</p>
+                                 
+                                 {user ? (
+                                     <div className="flex flex-col gap-2">
+                                         <div className="flex items-center gap-2 text-green-400 text-xs">
+                                             <span className="material-symbols-outlined text-sm">check_circle</span>
+                                             Logged in as {user.email}
+                                         </div>
+                                         <button onClick={logout} className="w-full bg-white/10 hover:bg-white/20 text-white py-2 rounded text-xs font-bold">Sign Out</button>
+                                     </div>
+                                 ) : (
+                                     <button onClick={login} className="w-full bg-white/10 hover:bg-white/20 text-white py-2 rounded text-xs font-bold flex items-center justify-center gap-2">
+                                         <span className="material-symbols-outlined text-sm">login</span>
+                                         Sign in with Google
+                                     </button>
+                                 )}
                             </div>
 
                             {/* Local Backup */}
