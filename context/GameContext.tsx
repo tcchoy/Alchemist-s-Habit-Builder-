@@ -1,8 +1,7 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { UserStats, Habit, Quest, JournalEntry, ShopItem, HistoryLog, FrequencyType, PotionCategory, Language, CategoryMeta, Toast } from '../types';
-import { auth, db, googleProvider } from '../firebaseConfig';
-import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { auth, db, isFirebaseConfigured, saveFirebaseConfig, clearFirebaseConfig } from '../firebaseConfig';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
 
 interface GameContextType {
@@ -29,7 +28,7 @@ interface GameContextType {
     buyShopItem: (item: ShopItem, customParam?: string, metaParam?: any) => boolean;
     addJournalEntry: (entry: JournalEntry) => void;
     resetDaily: () => void;
-    resetGame: () => void;
+    resetGame: () => Promise<void>;
     claimHarvestReward: () => { gold: number, xp: number, gems: number };
     isHabitDueToday: (habit: Habit) => boolean;
     getNextDueDate: (habit: Habit) => string;
@@ -38,8 +37,9 @@ interface GameContextType {
     importSaveData: (json: string) => void;
     saveToCloud: () => Promise<boolean>;
     loadFromCloud: () => Promise<boolean>;
-    login: () => void;
-    logout: () => void;
+    login: (email: string, pass: string) => Promise<void>;
+    register: (email: string, pass: string) => Promise<void>;
+    logout: () => Promise<void>;
     user: User | null;
     t: (key: string) => string;
     setLanguage: (lang: Language) => void;
@@ -49,6 +49,11 @@ interface GameContextType {
     finishBrewing: () => void;
     LEVEL_TITLES: {level: number, title: string}[];
     MAPS: { level: number, name: string, image: string, rewardRange: string, xpRange: string }[];
+    
+    // Cloud Configuration
+    isCloudConfigured: boolean;
+    configureCloud: (json: string) => void;
+    disconnectCloud: () => void;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -76,7 +81,6 @@ export const LEVEL_TITLES = [
     { level: 20, title: "Arcane Legend" },
 ];
 
-// JRPG Style Maps
 export const MAPS = [
     { level: 1, name: "Whisperwind Woodland", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Whisperwind%20Woodland.png", rewardRange: "10-50g", xpRange: "10-50XP" }, 
     { level: 2, name: "Gloomrot Bog", image: "https://raw.githubusercontent.com/tcchoy/Alchemist-s-Habit-Builder-Images/refs/heads/main/Gloomrot%20Bog.png", rewardRange: "20-100g", xpRange: "20-100XP" },
@@ -196,6 +200,12 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // Firebase Auth Listener
     useEffect(() => {
+        // If not configured, we just load local data and skip firebase listeners
+        if (!isFirebaseConfigured) {
+            loadLocalData();
+            return;
+        }
+
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
             if (currentUser) {
@@ -210,7 +220,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                         setJournalEntries(data.journalEntries || []);
                         setHistoryLogs(data.historyLogs || []);
                         setHabitIdeas(data.habitIdeas || '');
-                        showToast(`Welcome back, ${data.stats?.name || 'Alchemist'}`, 'success');
+                        showToast(`Welcome back!`, 'success');
                     } else {
                         // New user in Cloud, maybe sync local data?
                         // For now, just use current local state and save it to cloud next
@@ -224,7 +234,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             }
         });
         return () => unsubscribe();
-    }, []);
+    }, [isFirebaseConfigured]);
 
     const loadLocalData = () => {
         try {
@@ -264,8 +274,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         localStorage.setItem('pps_logs', JSON.stringify(historyLogs));
         localStorage.setItem('pps_ideas', habitIdeas);
 
-        // 2. Firestore (If logged in)
-        if (user) {
+        // 2. Firestore (If logged in AND configured)
+        if (user && isFirebaseConfigured) {
             const userRef = doc(db, 'users', user.uid);
             setDoc(userRef, dataToSave, { merge: true });
         }
@@ -401,23 +411,42 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     // Actions
-    const login = async () => {
+    const login = async (email: string, pass: string) => {
+        if (!isFirebaseConfigured) { showToast("Cloud not configured", 'error'); return; }
         try {
-            await signInWithPopup(auth, googleProvider);
-        } catch (e) {
+            await signInWithEmailAndPassword(auth, email, pass);
+            showToast("Logged in successfully", 'success');
+        } catch (e: any) {
             console.error("Login failed", e);
-            showToast("Login failed", 'error');
+            showToast(e.message || "Login failed", 'error');
+            throw e;
+        }
+    };
+
+    const register = async (email: string, pass: string) => {
+        if (!isFirebaseConfigured) { showToast("Cloud not configured", 'error'); return; }
+        try {
+            await createUserWithEmailAndPassword(auth, email, pass);
+            showToast("Account created!", 'success');
+        } catch (e: any) {
+            console.error("Registration failed", e);
+            showToast(e.message || "Registration failed", 'error');
+            throw e;
         }
     };
 
     const logout = async () => {
-        await signOut(auth);
-        setStats(INITIAL_STATS); // Reset to defaults or handle gracefully
-        window.location.reload();
+        isResetting.current = true;
+        try {
+            if (isFirebaseConfigured) await signOut(auth);
+            localStorage.clear(); 
+            window.location.reload();
+        } catch (e) {
+            console.error("Logout error", e);
+            isResetting.current = false;
+        }
     };
 
-    // ... (Rest of the actions: addHabit, buyShopItem, etc. - keeping logic same but ensuring they use current state which auto-syncs)
-    
     // System Quest Checker
     const checkSystemQuests = (triggerType: string, value?: number, overrideValue?: number) => {
         setQuests(prev => prev.map(q => {
@@ -433,7 +462,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                  if (streak >= q.maxProgress) return { ...q, status: 'completed', progress: q.maxProgress };
                  return { ...q, progress: streak };
             }
-            // ... other checks
             if (q.autoCheckKey === triggerType) {
                  const newProg = (value !== undefined ? value : q.progress + 1);
                  if (newProg >= q.maxProgress) return { ...q, status: 'completed', progress: q.maxProgress };
@@ -564,7 +592,35 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     const addJournalEntry = (entry: JournalEntry) => { setJournalEntries(prev => [entry, ...prev]); checkSystemQuests('journal_entry'); showToast("Journal entry inscribed", 'success'); };
-    const resetGame = () => { isResetting.current = true; localStorage.clear(); window.location.reload(); };
+    
+    const resetGame = async () => {
+        isResetting.current = true;
+        
+        if (user && isFirebaseConfigured) {
+            try {
+                showToast("Resetting Cloud Data...", "info");
+                const userRef = doc(db, 'users', user.uid);
+                await setDoc(userRef, {
+                    stats: INITIAL_STATS,
+                    habits: INITIAL_HABITS,
+                    quests: SEED_QUESTS,
+                    journalEntries: [],
+                    historyLogs: [],
+                    habitIdeas: '',
+                    lastSaved: new Date().toISOString()
+                });
+            } catch (e) {
+                console.error("Cloud reset failed", e);
+                showToast("Cloud reset failed", "error");
+                isResetting.current = false;
+                return;
+            }
+        }
+        
+        localStorage.clear();
+        window.location.reload();
+    };
+
     const exportSaveData = () => JSON.stringify({ stats, habits, quests, journalEntries, historyLogs, habitIdeas, version: 1.7 });
     const exportHistoryToCSV = () => {
         const header = "Date,Message,Type,RewardSummary\n";
@@ -598,7 +654,11 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             claimHarvestReward, isHabitDueToday, getNextDueDate, exportSaveData, exportHistoryToCSV, importSaveData,
             saveToCloud, loadFromCloud, t, setLanguage, showToast, toasts, 
             isBrewing, finishBrewing, LEVEL_TITLES, MAPS,
-            login, logout, user
+            login, register, logout, user,
+            // Cloud Config
+            isCloudConfigured: isFirebaseConfigured,
+            configureCloud: saveFirebaseConfig,
+            disconnectCloud: clearFirebaseConfig
         }}>
             {children}
         </GameContext.Provider>

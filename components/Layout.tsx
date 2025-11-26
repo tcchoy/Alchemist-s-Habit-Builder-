@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
@@ -36,10 +35,24 @@ const BottomNavItem = ({ to, icon, label, active }: { to: string; icon: string; 
 );
 
 const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-    const { exportSaveData, exportHistoryToCSV, importSaveData, stats, setStats, setLanguage, resetGame, login, logout, user } = useGame();
+    const { 
+        exportSaveData, exportHistoryToCSV, importSaveData, stats, setStats, setLanguage, resetGame, 
+        login, register, logout, user,
+        isCloudConfigured, configureCloud, disconnectCloud
+    } = useGame();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [newName, setNewName] = useState(stats.shopName);
     const [activeTab, setActiveTab] = useState<'general' | 'data'>('general');
+    
+    // Auth State
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [isLoginView, setIsLoginView] = useState(true);
+    const [authLoading, setAuthLoading] = useState(false);
+
+    // Config State
+    const [configJson, setConfigJson] = useState('');
+    const [configError, setConfigError] = useState('');
 
     const getTimestampedFilename = (prefix: string, ext: string) => {
         const now = new Date();
@@ -94,6 +107,32 @@ const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             resetGame();
         }
     };
+    
+    const handleAuth = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setAuthLoading(true);
+        try {
+            if (isLoginView) {
+                await login(email, password);
+            } else {
+                await register(email, password);
+            }
+            setEmail('');
+            setPassword('');
+        } catch (error) {
+            // Error handled in context
+        } finally {
+            setAuthLoading(false);
+        }
+    };
+
+    const handleConfigSubmit = () => {
+        try {
+            configureCloud(configJson);
+        } catch(e) {
+            setConfigError("Invalid JSON format or missing keys.");
+        }
+    };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
@@ -135,21 +174,74 @@ const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                             {/* Cloud Sync (Firebase) */}
                             <div className="p-4 bg-black/20 rounded-xl border border-white/5 space-y-3">
                                  <h3 className="text-white font-bold flex items-center gap-2"><span className="material-symbols-outlined text-orange-400 text-base">cloud_sync</span> Cloud Account</h3>
-                                 <p className="text-[10px] text-stone-400">Sign in to sync your progress across devices.</p>
                                  
-                                 {user ? (
-                                     <div className="flex flex-col gap-2">
-                                         <div className="flex items-center gap-2 text-green-400 text-xs">
-                                             <span className="material-symbols-outlined text-sm">check_circle</span>
-                                             Logged in as {user.email}
-                                         </div>
-                                         <button onClick={logout} className="w-full bg-white/10 hover:bg-white/20 text-white py-2 rounded text-xs font-bold">Sign Out</button>
-                                     </div>
+                                 {!isCloudConfigured ? (
+                                    <div className="space-y-3">
+                                        <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded text-xs text-blue-200">
+                                            <strong>Setup Required:</strong> To enable cloud sync, please paste your Firebase Config JSON below. This will be saved securely to your local storage.
+                                        </div>
+                                        <textarea 
+                                            value={configJson}
+                                            onChange={e => {setConfigJson(e.target.value); setConfigError('');}}
+                                            placeholder='{"apiKey": "AIza...", "authDomain": "...", ...}'
+                                            className="w-full h-32 bg-black/30 border border-white/10 rounded-lg p-3 text-white text-xs font-mono focus:border-primary focus:outline-none resize-none"
+                                        />
+                                        {configError && <p className="text-red-400 text-xs font-bold">{configError}</p>}
+                                        <button onClick={handleConfigSubmit} className="w-full bg-primary text-black py-2 rounded text-xs font-bold hover:bg-primary/90">Connect to Cloud</button>
+                                    </div>
                                  ) : (
-                                     <button onClick={login} className="w-full bg-white/10 hover:bg-white/20 text-white py-2 rounded text-xs font-bold flex items-center justify-center gap-2">
-                                         <span className="material-symbols-outlined text-sm">login</span>
-                                         Sign in with Google
-                                     </button>
+                                     <>
+                                         <p className="text-[10px] text-stone-400">Sign in to sync your progress across devices.</p>
+                                         
+                                         {user ? (
+                                             <div className="flex flex-col gap-2">
+                                                 <div className="flex items-center gap-2 text-green-400 text-xs">
+                                                     <span className="material-symbols-outlined text-sm">check_circle</span>
+                                                     Logged in as {user.email}
+                                                 </div>
+                                                 <button onClick={logout} className="w-full bg-white/10 hover:bg-white/20 text-white py-2 rounded text-xs font-bold">Sign Out</button>
+                                             </div>
+                                         ) : (
+                                             <div className="flex flex-col gap-3">
+                                                 <form onSubmit={handleAuth} className="flex flex-col gap-3">
+                                                    <input 
+                                                        type="email" 
+                                                        placeholder="Email Address" 
+                                                        value={email}
+                                                        onChange={(e) => setEmail(e.target.value)}
+                                                        className="bg-black/30 border border-white/10 rounded-lg p-3 text-white text-sm focus:outline-none focus:border-primary"
+                                                        required
+                                                    />
+                                                    <input 
+                                                        type="password" 
+                                                        placeholder="Password" 
+                                                        value={password}
+                                                        onChange={(e) => setPassword(e.target.value)}
+                                                        className="bg-black/30 border border-white/10 rounded-lg p-3 text-white text-sm focus:outline-none focus:border-primary"
+                                                        required
+                                                        minLength={6}
+                                                    />
+                                                    <button 
+                                                        type="submit" 
+                                                        disabled={authLoading}
+                                                        className="w-full bg-primary text-black py-2 rounded text-xs font-bold hover:bg-primary/90 disabled:opacity-50"
+                                                    >
+                                                        {authLoading ? 'Processing...' : isLoginView ? 'Log In' : 'Sign Up'}
+                                                    </button>
+                                                 </form>
+                                                 <button 
+                                                    onClick={() => setIsLoginView(!isLoginView)} 
+                                                    className="text-stone-400 text-xs hover:text-white underline"
+                                                 >
+                                                     {isLoginView ? "Don't have an account? Sign Up" : "Already have an account? Log In"}
+                                                 </button>
+                                             </div>
+                                         )}
+                                         
+                                         <div className="pt-2 border-t border-white/5 mt-2">
+                                             <button onClick={disconnectCloud} className="text-[10px] text-red-400 hover:text-red-300 underline">Reset Cloud Configuration</button>
+                                         </div>
+                                     </>
                                  )}
                             </div>
 
